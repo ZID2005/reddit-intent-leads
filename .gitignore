@@ -161,3 +161,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Local scraped cache files
+reddit_posts.json
+
