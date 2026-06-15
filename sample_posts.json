@@ -1,0 +1,37 @@
+[
+  {
+    "post_id": "post_1",
+    "title": "Looking to buy a CRM tool for a 5-person agency, any recommendations?",
+    "body": "Hey everyone, our agency is growing and spreadsheets aren't cutting it anymore. We need a CRM that is easy to use, integrates with Slack and Gmail, and costs under $100/month. We are looking to purchase something by next week. What do you recommend?",
+    "subreddit": "smallbusiness",
+    "url": "https://www.reddit.com/r/smallbusiness/comments/post_1"
+  },
+  {
+    "post_id": "post_2",
+    "title": "Stripe vs Paddle for SaaS in Europe?",
+    "body": "I'm launching a new B2B SaaS next month and am trying to decide between Stripe and Paddle. Stripe seems to have better APIs, but Paddle handles VAT/tax compliance in Europe. Does anyone have experience with both? Which one is better for a solo founder?",
+    "subreddit": "SaaS",
+    "url": "https://www.reddit.com/r/SaaS/comments/post_2"
+  },
+  {
+    "post_id": "post_3",
+    "title": "Frustrated with current marketing tools, they are all overpriced garbage",
+    "body": "I've tried 3 different email marketing platforms in the last month and they all have terrible UI, constant bugs, and customer service that takes days to reply. Why does everything cost $50+ a month just to send a basic newsletter and fail at it?",
+    "subreddit": "marketing",
+    "url": "https://www.reddit.com/r/marketing/comments/post_3"
+  },
+  {
+    "post_id": "post_4",
+    "title": "How does programmatic SEO work in practice?",
+    "body": "I understand the concept of templated pages powered by data, but how do you actually implement it? What tools are you using to generate pages, and how do you avoid getting penalized by Google for duplicate content?",
+    "subreddit": "startups",
+    "url": "https://www.reddit.com/r/startups/comments/post_4"
+  },
+  {
+    "post_id": "post_5",
+    "title": "The future of remote work in 2026",
+    "body": "Just wanted to start a discussion about where remote work is heading. I feel like more and more companies are forcing hybrid or return-to-office mandates. Do you think remote work will eventually become a niche option, or will the trend reverse?",
+    "subreddit": "entrepreneur",
+    "url": "https://www.reddit.com/r/entrepreneur/comments/post_5"
+  }
+]

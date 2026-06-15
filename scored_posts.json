@@ -1,0 +1,119 @@
+[
+    {
+        "post_id": "post_1",
+        "title": "Looking to buy a CRM tool for a 5-person agency, any recommendations?",
+        "body": "Hey everyone, our agency is growing and spreadsheets aren't cutting it anymore. We need a CRM that is easy to use, integrates with Slack and Gmail, and costs under $100/month. We are looking to purchase something by next week. What do you recommend?",
+        "subreddit": "smallbusiness",
+        "url": "https://www.reddit.com/r/smallbusiness/comments/post_1",
+        "intent_score": 95,
+        "confidence": 0.98,
+        "category": "buying_intent",
+        "reason": "The user explicitly states they are looking to buy a CRM tool with specific requirements and a tight timeline.",
+        "draft_reply": "Congratulations on your agency's growth. I'd be happy to help you find a CRM that fits your needs. Based on your requirements, you may want to consider tools like HubSpot, Zoho, or Pipedrive, which offer Slack and Gmail integrations and competitive pricing. What specific features are you prioritizing in a CRM, and I can provide more tailored recommendations?",
+        "keywords": [
+            "crm",
+            "slack",
+            "gmail",
+            "agency",
+            "hubspot",
+            "zoho",
+            "pipedrive"
+        ],
+        "lead_summary": "Agency of 5 employees actively evaluating CRM tools with budget under $100/month and purchase intent within 1 week.",
+        "priority": "high",
+        "recommended_action": "reply_immediately",
+        "processed_at": "2026-06-15T16:40:28Z"
+    },
+    {
+        "post_id": "post_2",
+        "title": "Stripe vs Paddle for SaaS in Europe?",
+        "body": "I'm launching a new B2B SaaS next month and am trying to decide between Stripe and Paddle. Stripe seems to have better APIs, but Paddle handles VAT/tax compliance in Europe. Does anyone have experience with both? Which one is better for a solo founder?",
+        "subreddit": "SaaS",
+        "url": "https://www.reddit.com/r/SaaS/comments/post_2",
+        "intent_score": 80,
+        "confidence": 0.9,
+        "category": "comparison",
+        "reason": "The user is comparing two payment gateways, Stripe and Paddle, for their B2B SaaS in Europe, indicating a need for evaluation and decision-making.",
+        "draft_reply": "Hi, congratulations on your upcoming SaaS launch. Both Stripe and Paddle are excellent choices, but they cater to different needs. Since you're a solo founder, you might want to consider the ease of integration and compliance features. Paddle's VAT/tax compliance in Europe could save you significant time and resources. Have you considered reaching out to both companies for a more detailed comparison of their services and pricing?",
+        "keywords": [
+            "stripe",
+            "paddle",
+            "saas",
+            "europe",
+            "vat",
+            "tax",
+            "compliance",
+            "b2b"
+        ],
+        "lead_summary": "Solo founder launching B2B SaaS in Europe next month, evaluating Stripe and Paddle for payment processing with a focus on VAT/tax compliance and ease of integration.",
+        "priority": "high",
+        "recommended_action": "reply_immediately",
+        "processed_at": "2026-06-15T16:40:30Z"
+    },
+    {
+        "post_id": "post_3",
+        "title": "Frustrated with current marketing tools, they are all overpriced garbage",
+        "body": "I've tried 3 different email marketing platforms in the last month and they all have terrible UI, constant bugs, and customer service that takes days to reply. Why does everything cost $50+ a month just to send a basic newsletter and fail at it?",
+        "subreddit": "marketing",
+        "url": "https://www.reddit.com/r/marketing/comments/post_3",
+        "intent_score": 40,
+        "confidence": 0.8,
+        "category": "frustration",
+        "reason": "The user expresses strong dissatisfaction with current marketing tools due to their high cost, poor UI, and inadequate customer service.",
+        "draft_reply": "Sorry to hear that you're having a frustrating experience with email marketing platforms. It's understandable that you're looking for a more affordable and reliable solution. Have you considered exploring open-source or newer alternatives that might offer better value for your needs?",
+        "keywords": [
+            "email marketing",
+            "ui",
+            "customer service",
+            "newsletter"
+        ],
+        "lead_summary": "Solo user frustrated with current email marketing tools, seeking affordable and reliable alternatives with a potential budget under $50/month and immediate purchase intent.",
+        "priority": "low",
+        "recommended_action": "ignore",
+        "processed_at": "2026-06-15T16:40:32Z"
+    },
+    {
+        "post_id": "post_4",
+        "title": "How does programmatic SEO work in practice?",
+        "body": "I understand the concept of templated pages powered by data, but how do you actually implement it? What tools are you using to generate pages, and how do you avoid getting penalized by Google for duplicate content?",
+        "subreddit": "startups",
+        "url": "https://www.reddit.com/r/startups/comments/post_4",
+        "intent_score": 40,
+        "confidence": 0.8,
+        "category": "information_seeking",
+        "reason": "The user is asking for a general explanation and implementation details of programmatic SEO, indicating a desire to learn and understand the concept.",
+        "draft_reply": "Programmatic SEO involves using data to generate templated pages at scale. To implement it, you can use tools like Python scripts, WordPress plugins, or dedicated SEO platforms. Avoiding duplicate content penalties requires careful planning, including using unique meta tags, titles, and descriptions for each page, as well as ensuring that the generated content provides value to users.",
+        "keywords": [
+            "programmatic seo",
+            "templated pages",
+            "google",
+            "duplicate content",
+            "seo tools"
+        ],
+        "lead_summary": "Individual seeking information on implementing programmatic SEO with a focus on avoiding duplicate content penalties, no specific budget or timeline mentioned.",
+        "priority": "low",
+        "recommended_action": "ignore",
+        "processed_at": "2026-06-15T16:40:35Z"
+    },
+    {
+        "post_id": "post_5",
+        "title": "The future of remote work in 2026",
+        "body": "Just wanted to start a discussion about where remote work is heading. I feel like more and more companies are forcing hybrid or return-to-office mandates. Do you think remote work will eventually become a niche option, or will the trend reverse?",
+        "subreddit": "entrepreneur",
+        "url": "https://www.reddit.com/r/entrepreneur/comments/post_5",
+        "intent_score": 20,
+        "confidence": 0.8,
+        "category": "discussion",
+        "reason": "The user is seeking to initiate a conversation about the future of remote work without expressing a specific need or intent to purchase.",
+        "draft_reply": "That's an interesting topic. While some companies are indeed adopting hybrid models, others are continuing to embrace remote work. It would be great to hear from others about their experiences and predictions for the future of remote work.",
+        "keywords": [
+            "remote work",
+            "hybrid model",
+            "return-to-office"
+        ],
+        "lead_summary": "Individual seeking to discuss the future of remote work with no specified budget or timeline.",
+        "priority": "low",
+        "recommended_action": "ignore",
+        "processed_at": "2026-06-15T16:40:37Z"
+    }
+]
