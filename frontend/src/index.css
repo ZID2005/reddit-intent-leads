@@ -1,0 +1,155 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
+
+@theme {
+  --color-carbon-dark: #171717;
+  --color-carbon-card: #1E1E1E;
+  --color-carbon-light: #262626;
+  --color-lime: #C6FF34;
+  --color-lime-accent: #C6FF34;
+  --color-mutedText: #888888;
+  --color-amberAccent: #FFB347;
+  --color-slateAccent: #555555;
+  
+  --font-mono: "DM Mono", monospace;
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    background-color: #171717;
+    color: #FFFFFF;
+    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+    overflow-x: hidden;
+  }
+}
+
+/* Glassmorphism Styles */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.glass-inset {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+/* Radar Pulse Animation */
+@keyframes breathe {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.pulse-dot {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background-color: #C6FF34;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #C6FF34;
+}
+
+.pulse-dot::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  background-color: #C6FF34;
+  border-radius: 50%;
+  animation: breathe 2s infinite ease-out;
+}
+
+/* Radar Pulse (Slow background sweep) */
+@keyframes radar-sweep {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.15;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0.15;
+  }
+}
+
+.radar-sweep-bg {
+  animation: radar-sweep 8s infinite ease-in-out;
+}
+
+/* Grid Dots Background */
+.grid-dots {
+  background-image: radial-gradient(rgba(198, 255, 52, 0.08) 1.5px, transparent 1.5px);
+  background-size: 16px 16px;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(198, 255, 52, 0.4);
+}
+
+/* Shimmer Loader Animation */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0.02) 25%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0.02) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Live Signal Scrolling Ticker Marquee Animation */
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 40s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}

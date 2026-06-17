@@ -1,6 +1,6 @@
 [
   {
-    "post_id": "post_1",
+    "post_id": "post_6",
     "title": "Looking to buy a CRM tool for a 5-person agency, any recommendations?",
     "body": "Hey everyone, our agency is growing and spreadsheets aren't cutting it anymore. We need a CRM that is easy to use, integrates with Slack and Gmail, and costs under $100/month. We are looking to purchase something by next week. What do you recommend?",
     "subreddit": "smallbusiness",
@@ -28,10 +28,10 @@
     "url": "https://www.reddit.com/r/startups/comments/post_4"
   },
   {
-    "post_id": "post_5",
-    "title": "The future of remote work in 2026",
-    "body": "Just wanted to start a discussion about where remote work is heading. I feel like more and more companies are forcing hybrid or return-to-office mandates. Do you think remote work will eventually become a niche option, or will the trend reverse?",
-    "subreddit": "entrepreneur",
-    "url": "https://www.reddit.com/r/entrepreneur/comments/post_5"
+    "post_id": "post_999999",
+    "title": "Need a CRM for my startup",
+    "body": "Looking for an email marketing platform for an ecommerce store with 10,000 subscribers.",
+    "subreddit": "smallbusiness",
+    "url": "https://reddit.com/example/post999"
   }
 ]
