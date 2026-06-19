@@ -17,7 +17,6 @@ interface DashboardPageProps {
 export function DashboardPage({ onBackToMarketing }: DashboardPageProps) {
   const {
     leads,
-    allLeadsRaw,
     loading,
     error,
     retryFetch,
@@ -30,9 +29,10 @@ export function DashboardPage({ onBackToMarketing }: DashboardPageProps) {
     selectedCategories,
     toggleCategory,
     resetFilters,
-    savedLeadIds,
+    totalLeadsCount,
+    savedLeadsCount,
+    contactedLeadsCount,
     toggleSaveLead,
-    contactedLeadsMap,
     toggleContactedLead,
   } = useLeads();
 
@@ -47,10 +47,6 @@ export function DashboardPage({ onBackToMarketing }: DashboardPageProps) {
 
   // Monitored subreddits list shown in the navbar center
   const monitoredSubs = ['SaaS', 'smallbusiness', 'startups', 'marketing', 'shopify'];
-
-  const totalLeadsCount = allLeadsRaw.length;
-  const savedLeadsCount = allLeadsRaw.filter(l => savedLeadIds.has(l.post_id)).length;
-  const contactedLeadsCount = allLeadsRaw.filter(l => contactedLeadsMap[l.post_id]).length;
 
   return (
     <div className="min-h-screen bg-carbon-dark text-white select-none relative flex flex-col font-sans">
@@ -123,7 +119,7 @@ export function DashboardPage({ onBackToMarketing }: DashboardPageProps) {
         <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
           
           {/* Stats Summary Bar */}
-          <StatBar leads={allLeadsRaw} />
+          <StatBar leads={leads} />
 
           {/* Lead list header with search query input */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-4 select-none">
@@ -201,11 +197,12 @@ export function DashboardPage({ onBackToMarketing }: DashboardPageProps) {
                   <LeadCard
                     key={lead.post_id}
                     lead={lead}
-                    isSaved={savedLeadIds.has(lead.post_id)}
-                    isContacted={!!contactedLeadsMap[lead.post_id]}
-                    contactedAt={contactedLeadsMap[lead.post_id] || null}
+                    isSaved={lead.status === 'saved'}
+                    isContacted={lead.status === 'contacted'}
+                    contactedAt={null}
                     onToggleSave={() => toggleSaveLead(lead.post_id)}
                     onToggleContacted={() => toggleContactedLead(lead.post_id)}
+                    fetchLeads={retryFetch}
                   />
                 ))}
               </div>

@@ -15,4 +15,5 @@ export interface Lead {
   draft_reply: string;
   lead_summary: string;
   created_at: string;
+  status: 'new' | 'saved' | 'contacted' | 'closed';
 }

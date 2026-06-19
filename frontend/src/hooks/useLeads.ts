@@ -17,7 +17,8 @@ const MOCK_LEADS: Lead[] = [
     reason: "Explicit purchase request with timeline and budget metrics.",
     draft_reply: "Hey! Since you are under $100/mo and need solid Slack/Gmail integrations, you should check out Capsule or Hubspot Starter. I've set up a similar pipeline for an agency of 6 and it works cleanly.",
     lead_summary: "5-person agency seeking CRM with Slack/Gmail integrations under $100/mo, ready to buy next week.",
-    created_at: new Date(Date.now() - 1000 * 60 * 18).toISOString() // 18m ago
+    created_at: new Date(Date.now() - 1000 * 60 * 18).toISOString(), // 18m ago
+    status: "new"
   },
   {
     post_id: "post_2",
@@ -32,7 +33,8 @@ const MOCK_LEADS: Lead[] = [
     reason: "Product evaluation comparing Stripe and Paddle for upcoming SaaS launching next month.",
     draft_reply: "Hey! If you are a solo founder in Europe, Paddle will save you dozens of hours on VAT tax compliance. Stripe is great but you'd need to bundle it with Stripe Tax/TaxJar which adds integration overhead.",
     lead_summary: "Solo founder evaluating Stripe and Paddle for European VAT tax compliance for SaaS launch next month.",
-    created_at: new Date(Date.now() - 1000 * 60 * 45).toISOString() // 45m ago
+    created_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(), // 45m ago
+    status: "new"
   },
   {
     post_id: "post_3",
@@ -47,7 +49,8 @@ const MOCK_LEADS: Lead[] = [
     reason: "High frustration with bugs, terrible UI, and high pricing in existing solutions.",
     draft_reply: "I completely feel your pain. If you just want to send a basic newsletter without the enterprise bloat, check out Buttondown or EmailOctopus. They have very simple UI, robust deliverability, and start free or very cheap.",
     lead_summary: "Marketing user frustrated by complex, buggy, and overpriced email tools seeking a simple newsletter platform.",
-    created_at: new Date(Date.now() - 1000 * 3600 * 2.5).toISOString() // 2.5h ago
+    created_at: new Date(Date.now() - 1000 * 3600 * 2.5).toISOString(), // 2.5h ago
+    status: "new"
   },
   {
     post_id: "post_4",
@@ -62,7 +65,8 @@ const MOCK_LEADS: Lead[] = [
     reason: "General question seeking information on programmatic SEO implementation strategies.",
     draft_reply: "Hey! In practice, programmatic SEO works by pulling structured data (e.g., Airtable or Supabase) and compiling it into page templates via Next.js or Astro. Google doesn't penalize duplicate structures if the content value is high and unique.",
     lead_summary: "Startup founder researching programmatic SEO tools, architectures, and duplicate content risks.",
-    created_at: new Date(Date.now() - 1000 * 3600 * 6).toISOString() // 6h ago
+    created_at: new Date(Date.now() - 1000 * 3600 * 6).toISOString(), // 6h ago
+    status: "new"
   },
   {
     post_id: "post_999999",
@@ -77,7 +81,8 @@ const MOCK_LEADS: Lead[] = [
     reason: "Strong buying signal for e-commerce CRM / email platform with 10k audience size.",
     draft_reply: "Hey! For an e-commerce store with 10k subscribers, Klaviyo is the industry standard for automated flows. If you want a cheaper alternative with excellent support, check out Omnisend or MailerLite.",
     lead_summary: "E-commerce startup seeking email marketing CRM for 10k subscribers.",
-    created_at: new Date(Date.now() - 1000 * 3600 * 12).toISOString() // 12h ago
+    created_at: new Date(Date.now() - 1000 * 3600 * 12).toISOString(), // 12h ago
+    status: "new"
   }
 ];
 
@@ -98,26 +103,33 @@ export function useLeads() {
     new Set(['buying_intent', 'comparison', 'pain_point', 'research'])
   );
 
-  // Saved & Contacted Leads State (Persisted in localStorage)
-  const [savedLeadIds, setSavedLeadIds] = useState<Set<string>>(() => {
-    const saved = localStorage.getItem('signalradar_saved_leads');
-    return saved ? new Set(JSON.parse(saved)) : new Set();
-  });
-  const [contactedLeadsMap, setContactedLeadsMap] = useState<Record<string, string>>(() => {
-    const contacted = localStorage.getItem('signalradar_contacted_leads');
-    return contacted ? JSON.parse(contacted) : {};
-  });
+  // Tab count stats fetched from database status
+  const [totalLeadsCount, setTotalLeadsCount] = useState<number>(0);
+  const [savedLeadsCount, setSavedLeadsCount] = useState<number>(0);
+  const [contactedLeadsCount, setContactedLeadsCount] = useState<number>(0);
 
   const { addToast } = useToast();
+  
+  // Track status modifications of local mock leads when DB is empty
+  const [mockStatuses, setMockStatuses] = useState<Record<string, 'new' | 'saved' | 'contacted'>>({});
 
-  // Save list mutations to localStorage
-  useEffect(() => {
-    localStorage.setItem('signalradar_saved_leads', JSON.stringify(Array.from(savedLeadIds)));
-  }, [savedLeadIds]);
+  // Helper to fetch counts of all views directly from Supabase
+  const fetchCounts = useCallback(async () => {
+    if (!supabase) return;
+    try {
+      const { data, error: dbError } = await supabase
+        .from('posts')
+        .select('status');
+      if (dbError) throw dbError;
 
-  useEffect(() => {
-    localStorage.setItem('signalradar_contacted_leads', JSON.stringify(contactedLeadsMap));
-  }, [contactedLeadsMap]);
+      const all = data || [];
+      setTotalLeadsCount(all.length);
+      setSavedLeadsCount(all.filter(l => l.status === 'saved').length);
+      setContactedLeadsCount(all.filter(l => l.status === 'contacted').length);
+    } catch (e) {
+      console.error("Failed to fetch status counts:", e);
+    }
+  }, []);
 
   // Fetch leads function
   const fetchLeads = useCallback(async () => {
@@ -128,56 +140,110 @@ export function useLeads() {
         // Fallback to rich mock data if no Supabase connection
         console.warn("Supabase not configured or missing keys. Falling back to local mock data.");
         setTimeout(() => {
-          setLeads(MOCK_LEADS);
+          const mockLeadsWithStatus = MOCK_LEADS.map(l => ({
+            ...l,
+            status: mockStatuses[l.post_id] || l.status
+          }));
+          
+          let mockFiltered = mockLeadsWithStatus;
+          if (currentView === 'saved') {
+            mockFiltered = mockLeadsWithStatus.filter(l => l.status === 'saved');
+          } else if (currentView === 'contacted') {
+            mockFiltered = mockLeadsWithStatus.filter(l => l.status === 'contacted');
+          }
+          
+          setLeads(mockFiltered);
+          setTotalLeadsCount(mockLeadsWithStatus.length);
+          setSavedLeadsCount(mockLeadsWithStatus.filter(l => l.status === 'saved').length);
+          setContactedLeadsCount(mockLeadsWithStatus.filter(l => l.status === 'contacted').length);
           setLoading(false);
         }, 800);
         return;
       }
 
-      const { data, error: dbError } = await supabase
+      // 1. Fetch counts of all posts in the DB to check if database is empty
+      const { data, error } = await supabase
         .from('posts')
-        .select('*')
-        .order('intent_score', { ascending: false });
+        .select('*');
 
-      if (dbError) throw dbError;
+      console.log("DATA:", data);
+      console.log("ERROR:", error);
 
-      // Handle category translation or fallback validation
-      const formattedData: Lead[] = (data || []).map((lead: any) => {
-        // Map table's processed_at or created_at to created_at
-        const created_at = lead.processed_at || lead.created_at || new Date().toISOString();
+      const countData = data;
+      const countError = error;
+
+      if (countError) throw countError;
+
+      const dbEmpty = !countData || countData.length === 0;
+
+      if (dbEmpty) {
+        console.warn("Supabase returned 0 leads. Falling back to mock data preview.");
+        const mockLeadsWithStatus = MOCK_LEADS.map(l => ({
+          ...l,
+          status: mockStatuses[l.post_id] || l.status
+        }));
         
-        // Ensure priority is correctly lowercase
-        const priority = (lead.priority || 'low').toLowerCase() as PriorityType;
-
-        // Ensure category matches CategoryType (map 'frustration' or others to 'pain_point' etc.)
-        let category: CategoryType = 'research';
-        const rawCat = String(lead.category).toLowerCase();
-        if (rawCat.includes('buy') || rawCat.includes('intent')) category = 'buying_intent';
-        else if (rawCat.includes('compare') || rawCat.includes('comparison')) category = 'comparison';
-        else if (rawCat.includes('pain') || rawCat.includes('frust') || rawCat.includes('point')) category = 'pain_point';
-        
-        return {
-          post_id: lead.post_id,
-          title: lead.title || '',
-          body: lead.body || '',
-          subreddit: lead.subreddit || 'unknown',
-          url: lead.url || '',
-          intent_score: Number(lead.intent_score || 0),
-          confidence: Number(lead.confidence || 0.5),
-          priority,
-          category,
-          reason: lead.reason || '',
-          draft_reply: lead.draft_reply || '',
-          lead_summary: lead.lead_summary || '',
-          created_at
-        };
-      });
-
-      if (formattedData.length > 0) {
-        setLeads(formattedData);
+        let mockFiltered = mockLeadsWithStatus;
+        if (currentView === 'saved') {
+          mockFiltered = mockLeadsWithStatus.filter(l => l.status === 'saved');
+        } else if (currentView === 'contacted') {
+          mockFiltered = mockLeadsWithStatus.filter(l => l.status === 'contacted');
+        }
+        setLeads(mockFiltered);
+        setTotalLeadsCount(mockLeadsWithStatus.length);
+        setSavedLeadsCount(mockLeadsWithStatus.filter(l => l.status === 'saved').length);
+        setContactedLeadsCount(mockLeadsWithStatus.filter(l => l.status === 'contacted').length);
       } else {
-        console.warn("Supabase returned 0 leads (possibly due to RLS). Falling back to mock data preview.");
-        setLeads(MOCK_LEADS);
+        // Update stats counts
+        setTotalLeadsCount(countData.length);
+        setSavedLeadsCount(countData.filter(l => l.status === 'saved').length);
+        setContactedLeadsCount(countData.filter(l => l.status === 'contacted').length);
+
+        // 2. Query table based on selected view
+        let query = supabase
+          .from('posts')
+          .select('*')
+          .order('intent_score', { ascending: false });
+
+        if (currentView === 'saved') {
+          query = query.eq('status', 'saved');
+        } else if (currentView === 'contacted') {
+          query = query.eq('status', 'contacted');
+        }
+
+        const { data, error: dbError } = await query;
+        if (dbError) throw dbError;
+
+        // Handle category translation or fallback validation
+        const formattedData: Lead[] = (data || []).map((lead: any) => {
+          const created_at = lead.processed_at || lead.created_at || new Date().toISOString();
+          const priority = (lead.priority || 'low').toLowerCase() as PriorityType;
+
+          let category: CategoryType = 'research';
+          const rawCat = String(lead.category).toLowerCase();
+          if (rawCat.includes('buy') || rawCat.includes('intent')) category = 'buying_intent';
+          else if (rawCat.includes('compare') || rawCat.includes('comparison')) category = 'comparison';
+          else if (rawCat.includes('pain') || rawCat.includes('frust') || rawCat.includes('point')) category = 'pain_point';
+          
+          return {
+            post_id: lead.post_id,
+            title: lead.title || '',
+            body: lead.body || '',
+            subreddit: lead.subreddit || 'unknown',
+            url: lead.url || '',
+            intent_score: Number(lead.intent_score || 0),
+            confidence: Number(lead.confidence || 0.5),
+            priority,
+            category,
+            reason: lead.reason || '',
+            draft_reply: lead.draft_reply || '',
+            lead_summary: lead.lead_summary || '',
+            created_at,
+            status: lead.status || 'new'
+          };
+        });
+
+        setLeads(formattedData);
       }
     } catch (e: any) {
       console.error(e);
@@ -187,12 +253,12 @@ export function useLeads() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentView, mockStatuses]);
 
-  // Fetch leads on mount
+  // Fetch leads on mount or when currentView changes
   useEffect(() => {
     fetchLeads();
-  }, [fetchLeads]);
+  }, [fetchLeads, currentView]);
 
   // Real-time Supabase Subscription
   useEffect(() => {
@@ -206,7 +272,6 @@ export function useLeads() {
         (payload) => {
           const newRow = payload.new;
           
-          // Map DB structure to Lead schema
           const priority = (newRow.priority || 'low').toLowerCase() as PriorityType;
           let category: CategoryType = 'research';
           const rawCat = String(newRow.category).toLowerCase();
@@ -227,14 +292,16 @@ export function useLeads() {
             reason: newRow.reason || '',
             draft_reply: newRow.draft_reply || '',
             lead_summary: newRow.lead_summary || '',
-            created_at: newRow.processed_at || newRow.created_at || new Date().toISOString()
+            created_at: newRow.processed_at || newRow.created_at || new Date().toISOString(),
+            status: newRow.status || 'new'
           };
 
+          if (currentView === 'saved' && newLead.status !== 'saved') return;
+          if (currentView === 'contacted' && newLead.status !== 'contacted') return;
+
           setLeads(prev => {
-            // Avoid duplicates
             if (prev.some(lead => lead.post_id === newLead.post_id)) return prev;
             
-            // Trigger toast notification if high intent
             if (newLead.priority === 'high' || newLead.intent_score >= 80) {
               addToast({
                 title: newLead.title,
@@ -245,6 +312,34 @@ export function useLeads() {
 
             return [newLead, ...prev];
           });
+
+          fetchCounts();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'posts' },
+        (payload) => {
+          const updatedRow = payload.new;
+          
+          setLeads(prev => {
+            // Remove from list if status no longer matches filtered view tab
+            if (currentView === 'saved' && updatedRow.status !== 'saved') {
+              return prev.filter(l => l.post_id !== updatedRow.post_id);
+            }
+            if (currentView === 'contacted' && updatedRow.status !== 'contacted') {
+              return prev.filter(l => l.post_id !== updatedRow.post_id);
+            }
+
+            return prev.map(l => {
+              if (l.post_id === updatedRow.post_id) {
+                return { ...l, status: updatedRow.status };
+              }
+              return l;
+            });
+          });
+
+          fetchCounts();
         }
       )
       .subscribe();
@@ -254,33 +349,73 @@ export function useLeads() {
         supabase.removeChannel(channel);
       }
     };
-  }, [addToast]);
+  }, [addToast, currentView, fetchCounts]);
 
-  // Bookmarking action
-  const toggleSaveLead = useCallback((postId: string) => {
-    setSavedLeadIds(prev => {
-      const next = new Set(prev);
-      if (next.has(postId)) {
-        next.delete(postId);
-      } else {
-        next.add(postId);
-      }
-      return next;
-    });
-  }, []);
+  // Bookmarking action (Status = 'saved' / 'new')
+  const toggleSaveLead = useCallback(async (postId: string) => {
+    const lead = leads.find(l => l.post_id === postId);
+    if (!lead) return;
 
-  // Mark contacted action
-  const toggleContactedLead = useCallback((postId: string) => {
-    setContactedLeadsMap(prev => {
-      const next = { ...prev };
-      if (next[postId]) {
-        delete next[postId];
-      } else {
-        next[postId] = new Date().toISOString();
+    const nextStatus = lead.status === 'saved' ? 'new' : 'saved';
+
+    // Update mock status local state
+    setMockStatuses(prev => ({ ...prev, [postId]: nextStatus }));
+
+    // Optimistically update status locally
+    setLeads(prev => {
+      if (currentView === 'saved' && nextStatus !== 'saved') {
+        return prev.filter(l => l.post_id !== postId);
       }
-      return next;
+      return prev.map(l => l.post_id === postId ? { ...l, status: nextStatus } : l);
     });
-  }, []);
+
+    try {
+      if (!supabase) return;
+      const { error: dbError } = await supabase
+        .from('posts')
+        .update({ status: nextStatus })
+        .eq('post_id', postId);
+      if (dbError) throw dbError;
+
+      fetchCounts();
+    } catch (e) {
+      console.error("Failed to update status to saved:", e);
+      fetchLeads();
+    }
+  }, [leads, currentView, fetchCounts, fetchLeads]);
+
+  // Mark contacted action (Status = 'contacted' / 'new')
+  const toggleContactedLead = useCallback(async (postId: string) => {
+    const lead = leads.find(l => l.post_id === postId);
+    if (!lead) return;
+
+    const nextStatus = lead.status === 'contacted' ? 'new' : 'contacted';
+
+    // Update mock status local state
+    setMockStatuses(prev => ({ ...prev, [postId]: nextStatus }));
+
+    // Optimistically update status locally
+    setLeads(prev => {
+      if (currentView === 'contacted' && nextStatus !== 'contacted') {
+        return prev.filter(l => l.post_id !== postId);
+      }
+      return prev.map(l => l.post_id === postId ? { ...l, status: nextStatus } : l);
+    });
+
+    try {
+      if (!supabase) return;
+      const { error: dbError } = await supabase
+        .from('posts')
+        .update({ status: nextStatus })
+        .eq('post_id', postId);
+      if (dbError) throw dbError;
+
+      fetchCounts();
+    } catch (e) {
+      console.error("Failed to update status to contacted:", e);
+      fetchLeads();
+    }
+  }, [leads, currentView, fetchCounts, fetchLeads]);
 
   // Priority Filter Toggle
   const togglePriority = useCallback((priority: PriorityType) => {
@@ -318,7 +453,6 @@ export function useLeads() {
   // Filtered Leads computing
   const filteredLeads = useMemo(() => {
     return leads.filter(lead => {
-      // 1. Search Query filter (matches title, body, or subreddit)
       const q = searchQuery.toLowerCase().trim();
       if (q) {
         const titleMatch = lead.title.toLowerCase().includes(q);
@@ -327,20 +461,18 @@ export function useLeads() {
         if (!titleMatch && !bodyMatch && !subMatch) return false;
       }
 
-      // 2. Priority filter
       if (!selectedPriorities.has(lead.priority)) return false;
-
-      // 3. Category filter
       if (!selectedCategories.has(lead.category)) return false;
 
-      // 4. View filter (all vs saved vs contacted)
-      if (currentView === 'saved' && !savedLeadIds.has(lead.post_id)) return false;
-      if (currentView === 'contacted' && !contactedLeadsMap[lead.post_id]) return false;
-      // In the 'all' view, let's keep all leads visible (even if saved or contacted)
-      
+      // Fallback check if mock data is used
+      if (!supabase) {
+        if (currentView === 'saved' && lead.status !== 'saved') return false;
+        if (currentView === 'contacted' && lead.status !== 'contacted') return false;
+      }
+
       return true;
     });
-  }, [leads, searchQuery, selectedPriorities, selectedCategories, currentView, savedLeadIds, contactedLeadsMap]);
+  }, [leads, searchQuery, selectedPriorities, selectedCategories, currentView]);
 
   return {
     leads: filteredLeads,
@@ -362,10 +494,13 @@ export function useLeads() {
     toggleCategory,
     resetFilters,
 
+    // Counts
+    totalLeadsCount,
+    savedLeadsCount,
+    contactedLeadsCount,
+
     // Interactions
-    savedLeadIds,
     toggleSaveLead,
-    contactedLeadsMap,
-    toggleContactedLead,
+    toggleContactedLead
   };
 }

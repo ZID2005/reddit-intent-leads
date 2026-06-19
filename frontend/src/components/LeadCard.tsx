@@ -6,14 +6,16 @@ import {
   PhoneCall, ShieldAlert, Calendar 
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { supabase } from '../lib/supabase';
 
 interface LeadCardProps {
   lead: Lead;
   isSaved: boolean;
   isContacted: boolean;
   contactedAt: string | null;
-  onToggleSave: () => void;
+  onToggleSave?: () => void;
   onToggleContacted: () => void;
+  fetchLeads?: () => void;
 }
 
 export function LeadCard({
@@ -23,9 +25,37 @@ export function LeadCard({
   contactedAt,
   onToggleSave,
   onToggleContacted,
+  fetchLeads,
 }: LeadCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+
+  const handleSaveLead = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!supabase) {
+      if (onToggleSave) onToggleSave();
+      return;
+    }
+
+    const nextStatus = isSaved ? 'new' : 'saved';
+
+    const { data } = await supabase
+      .from("posts")
+      .update({ status: nextStatus })
+      .eq("post_id", lead.post_id)
+      .select();
+
+    if (data && data.length > 0) {
+      if (fetchLeads) {
+        fetchLeads(); // refresh data
+      }
+    } else {
+      // Database row was not updated (likely a mock lead), fallback to local toggle
+      if (onToggleSave) {
+        onToggleSave();
+      }
+    }
+  };
 
   // Border and badge color mapping
   const priorityStyles = {
@@ -270,7 +300,7 @@ export function LeadCard({
 
                 {/* Save Lead */}
                 <button
-                  onClick={onToggleSave}
+                  onClick={handleSaveLead}
                   className={cn(
                     "px-4 py-2 rounded-lg border text-xs font-mono uppercase tracking-wider flex items-center gap-2 transition-transform duration-150 active:scale-95 ml-auto",
                     isSaved
