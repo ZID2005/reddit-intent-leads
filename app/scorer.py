@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Constants
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-DEFAULT_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 MAX_RETRIES = 5
 INITIAL_BACKOFF = 2.0  # seconds
 
@@ -67,6 +67,10 @@ def call_groq_api(title: str, body: str, api_key: str, model: str = DEFAULT_MODE
     Raises:
         GroqScorerError: If the API call fails or returns invalid/malformed JSON.
     """
+    # Truncate body to save tokens and prevent TPM (Tokens Per Minute) rate limits on Groq free tier
+    if body and len(body) > 600:
+        body = body[:600] + "... (truncated)"
+
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
@@ -100,6 +104,7 @@ def call_groq_api(title: str, body: str, api_key: str, model: str = DEFAULT_MODE
             {"role": "user", "content": user_content}
         ],
         "temperature": 0.0,
+        "max_tokens": 600,
         "response_format": {"type": "json_object"}
     }
 

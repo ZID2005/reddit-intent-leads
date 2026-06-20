@@ -1,34 +1,37 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { useLeads } from '../hooks/useLeads';
+import { useFilters } from '../hooks/useFilters';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { Sidebar } from '../components/Sidebar';
 import { StatBar } from '../components/StatBar';
 import { LiveSignalFeed } from '../components/LiveSignalFeed';
 import { LeadCard } from '../components/LeadCard';
+import { LeadDetailsDrawer } from '../components/LeadDetailsDrawer';
 import { OnboardingModal } from '../components/OnboardingModal';
 import { ToastContainer } from '../components/ToastContainer';
 import { LoadingState, EmptyState, ErrorState, NoSearchResultsState } from '../components/EmptyStates';
-import { Search, RotateCw, LogOut, Sparkles } from 'lucide-react';
+import { SearchBar } from '../components/filters/SearchBar';
+import { SortDropdown } from '../components/filters/SortDropdown';
+import { ActiveFilterChips } from '../components/filters/ActiveFilterChips';
+import { ResultCounter } from '../components/filters/ResultCounter';
+import { RotateCw, LogOut } from 'lucide-react';
+import { Lead } from '../types/lead';
+import { AnalyticsPage } from './AnalyticsPage';
 
 interface DashboardPageProps {
   onBackToMarketing: () => void;
 }
 
 export function DashboardPage({ onBackToMarketing }: DashboardPageProps) {
+  // ── Data layer ──────────────────────────────────────────────────────────────
   const {
-    leads,
+    allLeads,
     loading,
     error,
     retryFetch,
     currentView,
     setCurrentView,
-    searchQuery,
-    setSearchQuery,
-    selectedPriorities,
-    togglePriority,
-    selectedCategories,
-    toggleCategory,
-    resetFilters,
     totalLeadsCount,
     savedLeadsCount,
     contactedLeadsCount,
@@ -36,37 +39,58 @@ export function DashboardPage({ onBackToMarketing }: DashboardPageProps) {
     toggleContactedLead,
   } = useLeads();
 
+  // ── Filter layer (in-memory, no re-fetch) ───────────────────────────────────
   const {
-    isOnboarded,
-    step,
-    nextStep,
-    prevStep,
-    completeOnboarding,
-    resetOnboarding
-  } = useOnboarding();
+    filters,
+    setSearchQuery,
+    togglePriority,
+    toggleCategory,
+    toggleSubreddit,
+    setIntentRange,
+    setConfidenceRange,
+    setSortKey,
+    resetFilters,
+    availableSubreddits,
+    filteredLeads,
+    filteredCount,
+    hasActiveFilters,
+    activeChips,
+    removeChip,
+  } = useFilters(allLeads);
 
-  // Monitored subreddits list shown in the navbar center
+  // ── Onboarding ──────────────────────────────────────────────────────────────
+  const { isOnboarded, step, nextStep, prevStep, completeOnboarding } = useOnboarding();
+
+  // ── Drawer ──────────────────────────────────────────────────────────────────
+  const [drawerLead, setDrawerLead] = useState<Lead | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const openDrawer = (lead: Lead) => { setDrawerLead(lead); setDrawerOpen(true); };
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    setTimeout(() => setDrawerLead(null), 350);
+  };
+
+  // Monitored subreddits shown in navbar
   const monitoredSubs = ['SaaS', 'smallbusiness', 'startups', 'marketing', 'shopify'];
+
+  // Detect if search/filter produced zero results from a non-empty dataset
+  const hasLeadsInDb = allLeads.length > 0;
+  const noResults = !loading && !error && filteredCount === 0;
+  const noResultsFromFilter = noResults && hasActiveFilters && hasLeadsInDb;
 
   return (
     <div className="min-h-screen bg-carbon-dark text-white select-none relative flex flex-col font-sans">
-      
-      {/* 1. Navbar */}
-      <nav className="fixed top-0 left-0 right-0 h-16 glass-panel border-t-0 border-r-0 border-l-0 bg-carbon-dark/80 backdrop-blur-md z-40 flex items-center justify-between px-6 select-none">
-        
-        {/* Logo */}
+
+      {/* ── Navbar ──────────────────────────────────────────────────────────── */}
+      <nav className="fixed top-0 left-0 right-0 h-16 glass-panel border-t-0 border-r-0 border-l-0 bg-carbon-dark/80 backdrop-blur-md z-40 flex items-center justify-between px-6">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-lime animate-pulse shadow-[0_0_6px_#C6FF34]" />
-          <span className="font-mono text-sm font-bold tracking-wider text-white">
-            SignalRadar
-          </span>
+          <span className="font-mono text-sm font-bold tracking-wider text-white">SignalRadar</span>
         </div>
 
-        {/* Monitored Subreddits Chips (Desktop Center) */}
         <div className="hidden md:flex items-center gap-2">
-          <span className="text-[10px] font-mono text-mutedText uppercase tracking-widest mr-1">
-            monitoring:
-          </span>
+          <span className="text-[10px] font-mono text-mutedText uppercase tracking-widest mr-1">monitoring:</span>
           {monitoredSubs.map(sub => (
             <span key={sub} className="px-2.5 py-0.5 rounded-full glass-panel border-white/5 bg-white/[0.01] font-mono text-[9px] text-lime/90 font-medium">
               r/{sub}
@@ -74,16 +98,11 @@ export function DashboardPage({ onBackToMarketing }: DashboardPageProps) {
           ))}
         </div>
 
-        {/* Connection status (Right side) */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 glass-panel border-white/5 bg-white/[0.01] px-3 py-1.5 rounded-full">
             <div className="w-1.5 h-1.5 rounded-full bg-lime pulse-dot" />
-            <span className="font-mono text-[9px] text-lime font-bold tracking-widest">
-              LIVE
-            </span>
+            <span className="font-mono text-[9px] text-lime font-bold tracking-widest">LIVE</span>
           </div>
-
-          {/* Landing page exit link */}
           <button
             onClick={onBackToMarketing}
             className="p-1.5 rounded-lg glass-panel border-white/5 text-gray-400 hover:text-white transition-colors duration-150"
@@ -94,106 +113,118 @@ export function DashboardPage({ onBackToMarketing }: DashboardPageProps) {
         </div>
       </nav>
 
-      {/* 2. Horizontal scrolling Signals Marquee Bar */}
+      {/* ── Live signal marquee ─────────────────────────────────────────────── */}
       <div className="fixed top-16 left-0 right-0 z-30">
         <LiveSignalFeed />
       </div>
 
-      {/* 3. Main Dashboard Layout content container */}
+      {/* ── Main layout ─────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col md:flex-row pt-[108px] h-screen overflow-hidden">
-        
-        {/* Sidebar Filters */}
+
+        {/* Sidebar with all filter props */}
         <Sidebar
           currentView={currentView}
           setView={setCurrentView}
-          selectedPriorities={selectedPriorities}
-          togglePriority={togglePriority}
-          selectedCategories={selectedCategories}
-          toggleCategory={toggleCategory}
           totalLeads={totalLeadsCount}
           savedCount={savedLeadsCount}
           contactedCount={contactedLeadsCount}
+          filters={filters}
+          availableSubreddits={availableSubreddits}
+          togglePriority={togglePriority}
+          toggleCategory={toggleCategory}
+          toggleSubreddit={toggleSubreddit}
+          setIntentRange={setIntentRange}
+          setConfidenceRange={setConfidenceRange}
+          hasActiveFilters={hasActiveFilters}
+          onResetFilters={resetFilters}
         />
 
-        {/* Main Lead Feed Area (Scrollable container) */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
-          
-          {/* Stats Summary Bar */}
-          <StatBar leads={leads} />
+        {/* ── Main Feed / Analytics Content ─────────────────────────────────── */}
+        {currentView === 'analytics' ? (
+          <AnalyticsPage
+            leads={allLeads}
+            loading={loading}
+            error={error}
+            retryFetch={retryFetch}
+          />
+        ) : (
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4">
 
-          {/* Lead list header with search query input */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-4 select-none">
-            <div className="flex items-center gap-3">
-              <h2 className="text-sm font-bold tracking-wider text-white uppercase font-sans">
-                {currentView === 'all' && "All Scored Signals"}
-                {currentView === 'saved' && "Bookmarked Leads"}
-                {currentView === 'contacted' && "Outreach History"}
-              </h2>
-              {/* Refresh indicator */}
-              {!loading && (
-                <button
-                  onClick={retryFetch}
-                  className="p-1.5 rounded-full glass-panel border-white/5 text-gray-400 hover:text-white transition-colors"
-                  title="Reload Leads"
-                >
-                  <RotateCw className="w-3 h-3" />
-                </button>
-              )}
+            {/* Stats bar */}
+            <StatBar leads={allLeads} />
+
+            {/* ── Toolbar: header + search + sort ─────────────────────────────── */}
+            <div className="space-y-3 pt-2">
+              {/* Row 1: title + refresh + sort */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold tracking-wider text-white uppercase font-sans">
+                    {currentView === 'all'       && 'All Scored Signals'}
+                    {currentView === 'saved'     && 'Bookmarked Leads'}
+                    {currentView === 'contacted' && 'Outreach History'}
+                  </h2>
+                  {!loading && (
+                    <button
+                      onClick={retryFetch}
+                      className="p-1.5 rounded-full glass-panel border-white/5 text-gray-400 hover:text-white transition-colors"
+                      title="Reload Leads"
+                    >
+                      <RotateCw className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <ResultCounter filtered={filteredCount} total={allLeads.length} loading={loading} />
+                  <SortDropdown value={filters.sortKey} onChange={setSortKey} />
+                </div>
+              </div>
+
+              {/* Row 2: search bar */}
+              <SearchBar value={filters.searchQuery} onChange={setSearchQuery} />
+
+              {/* Row 3: active filter chips */}
+              <AnimatePresence>
+                {activeChips.length > 0 && (
+                  <ActiveFilterChips
+                    chips={activeChips}
+                    onRemove={removeChip}
+                    onClearAll={resetFilters}
+                  />
+                )}
+              </AnimatePresence>
             </div>
 
-            {/* Keyword / Subreddit text search */}
-            <div className="relative w-full md:max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search keywords or subreddits..."
-                className="w-full pl-9 pr-4 py-2 text-xs font-sans rounded-lg glass-panel bg-transparent border-white/10 text-white placeholder-gray-600 focus:outline-none focus:border-lime/30 transition-colors"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-gray-500 hover:text-white uppercase font-mono"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Conditional rendering for Loader, Error, Empty list, or Cards */}
-          <div className="space-y-4 pt-2">
-            {loading ? (
-              <LoadingState />
-            ) : error ? (
-              <ErrorState message={error} onRetry={retryFetch} />
-            ) : leads.length === 0 ? (
-              searchQuery ? (
+            {/* ── Lead cards ─────────────────────────────────────────────────── */}
+            <div className="space-y-3 pb-8">
+              {loading ? (
+                <LoadingState />
+              ) : error ? (
+                <ErrorState message={error} onRetry={retryFetch} />
+              ) : noResultsFromFilter ? (
                 <NoSearchResultsState onClear={resetFilters} />
-              ) : currentView === 'saved' ? (
-                <div className="glass-panel p-12 text-center rounded-2xl max-w-md mx-auto my-8">
-                  <span className="text-xl block mb-4">🔖</span>
-                  <h3 className="text-base font-semibold mb-1">No saved leads yet</h3>
-                  <p className="text-xs text-mutedText leading-relaxed">
-                    Bookmark high-intent leads from the all leads feed to follow up or draft replies later.
-                  </p>
-                </div>
-              ) : currentView === 'contacted' ? (
-                <div className="glass-panel p-12 text-center rounded-2xl max-w-md mx-auto my-8">
-                  <span className="text-xl block mb-4">📞</span>
-                  <h3 className="text-base font-semibold mb-1">No outreach history</h3>
-                  <p className="text-xs text-mutedText leading-relaxed">
-                    Leads you mark as contacted will show up here to help you track your sales conversion pipeline.
-                  </p>
-                </div>
+              ) : noResults ? (
+                currentView === 'saved' ? (
+                  <div className="glass-panel p-12 text-center rounded-2xl max-w-md mx-auto my-8">
+                    <span className="text-xl block mb-4">🔖</span>
+                    <h3 className="text-base font-semibold mb-1">No saved leads yet</h3>
+                    <p className="text-xs text-mutedText leading-relaxed">
+                      Bookmark high-intent leads to follow up later.
+                    </p>
+                  </div>
+                ) : currentView === 'contacted' ? (
+                  <div className="glass-panel p-12 text-center rounded-2xl max-w-md mx-auto my-8">
+                    <span className="text-xl block mb-4">📞</span>
+                    <h3 className="text-base font-semibold mb-1">No outreach history</h3>
+                    <p className="text-xs text-mutedText leading-relaxed">
+                      Leads you mark as contacted appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <EmptyState onRefresh={retryFetch} />
+                )
               ) : (
-                <EmptyState onRefresh={retryFetch} />
-              )
-            ) : (
-              // Lead cards list grid layout
-              <div className="space-y-4">
-                {leads.map((lead) => (
+                filteredLeads.map(lead => (
                   <LeadCard
                     key={lead.post_id}
                     lead={lead}
@@ -203,35 +234,40 @@ export function DashboardPage({ onBackToMarketing }: DashboardPageProps) {
                     onToggleSave={() => toggleSaveLead(lead.post_id)}
                     onToggleContacted={() => toggleContactedLead(lead.post_id)}
                     fetchLeads={retryFetch}
+                    onOpenDrawer={openDrawer}
                   />
-                ))}
-              </div>
-            )}
-          </div>
+                ))
+              )}
+            </div>
 
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Onboarding Wizard Modal Overlay */}
+      {/* ── Lead Details Drawer ─────────────────────────────────────────────── */}
+      <LeadDetailsDrawer
+        lead={drawerLead}
+        isOpen={drawerOpen}
+        onClose={closeDrawer}
+        isSaved={drawerLead?.status === 'saved'}
+        isContacted={drawerLead?.status === 'contacted'}
+        onToggleSave={() => drawerLead && toggleSaveLead(drawerLead.post_id)}
+        onToggleContacted={() => drawerLead && toggleContactedLead(drawerLead.post_id)}
+      />
+
+      {/* ── Onboarding ──────────────────────────────────────────────────────── */}
       {!isOnboarded && (
         <OnboardingModal
           step={step}
-          onNext={() => {
-            if (step === 3) {
-              completeOnboarding();
-            } else {
-              nextStep();
-            }
-          }}
+          onNext={() => { if (step === 3) completeOnboarding(); else nextStep(); }}
           onPrev={prevStep}
           onSkip={completeOnboarding}
         />
       )}
 
-      {/* Toast popup notifications queue wrapper */}
       <ToastContainer />
-
     </div>
   );
 }
+
 export default DashboardPage;

@@ -153,3 +153,38 @@
 .animate-marquee:hover {
   animation-play-state: paused;
 }
+
+/* ── Dual Range Slider Thumbs ─────────────────────────────────────────────── */
+.range-thumb::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #C6FF34;
+  border: 2px solid #111;
+  box-shadow: 0 0 6px rgba(198, 255, 52, 0.5);
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.range-thumb::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 10px rgba(198, 255, 52, 0.8);
+}
+
+.range-thumb::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #C6FF34;
+  border: 2px solid #111;
+  box-shadow: 0 0 6px rgba(198, 255, 52, 0.5);
+  cursor: pointer;
+}
+
+/* Confidence slider thumb uses amber */
+.range-thumb.amber::-webkit-slider-thumb {
+  background: #FFB347;
+  box-shadow: 0 0 6px rgba(255, 179, 71, 0.5);
+}
