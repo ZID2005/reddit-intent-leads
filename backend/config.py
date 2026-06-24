@@ -25,36 +25,17 @@ SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
 # Organised by vertical so it's easy to add / remove later.
 # ---------------------------------------------------------------------------
 SUBREDDITS: list[str] = [
-    # SaaS & Startups
+    # High-value commercial intent — primary targets
     "SaaS",
     "startups",
-    "Entrepreneur",
     "smallbusiness",
-    "indiehackers",
-    # Marketing
-    "marketing",
-    "digital_marketing",
-    "PPC",
-    "SEO",
-    "content_marketing",
-    # Sales & CRM
-    "sales",
     "CRM",
-    "salesforce",
-    "hubspot",
-    # E-commerce
+    "marketing",
+    "sales",
     "shopify",
     "ecommerce",
-    "AmazonSeller",
-    "FulfillmentByAmazon",
-    # Productivity & Business Tools
-    "productivity",
-    "notion",
+    "hubspot",
     "projectmanagement",
-    # Technology
-    "webdev",
-    "devops",
-    "aws",
 ]
 
 # ---------------------------------------------------------------------------
@@ -64,17 +45,11 @@ SUBREDDITS: list[str] = [
 RSS_FEED_TEMPLATE: str = "https://www.reddit.com/r/{subreddit}/new.rss"
 
 # How many posts to request per feed fetch (Reddit caps at 100).
-RSS_LIMIT: int = 25
+RSS_LIMIT: int = 10
 
 # HTTP request timeout in seconds.
 REQUEST_TIMEOUT: float = 15.0
 
-# User-Agent for HTTP requests.  Reddit blocks default python-requests UA.
-USER_AGENT: str = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/124.0.0.0 Safari/537.36"
-)
 
 # ---------------------------------------------------------------------------
 # Database table

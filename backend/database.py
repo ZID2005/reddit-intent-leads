@@ -9,16 +9,18 @@ Responsibilities:
 - Insert new lead records into the ``posts`` table.
 - Batch-check post_ids to minimise round-trips.
 
-This module is intentionally separate from the existing ``app/database.py``
-so the two pipelines can evolve independently.  Once Groq scoring is added,
-this file will remain unchanged — the scorer will just enrich the lead dict
-before it arrives here.
+Schema notes
+------------
+``keywords`` is stored as a Supabase ``jsonb`` column.  The Python supabase
+client does NOT automatically serialise Python lists to JSON for jsonb columns
+— we must call ``json.dumps()`` before inserting.  Sending a raw Python list
+causes a silent 400 / type-mismatch rejection from PostgREST.
 
-Supabase ``posts`` table columns we write to:
-    post_id, title, body, subreddit, url, created_at,
-    author (optional), published_at (optional)
+``status`` defaults to ``'new'`` in the schema; we inject it explicitly so the
+insert never relies on a server-side default that might not exist.
 """
 
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -49,7 +51,6 @@ class LeadDatabase:
             "url",
             "created_at",
             "status",
-            # Future columns (Groq scorer will populate these):
             "intent_score",
             "confidence",
             "priority",
@@ -60,8 +61,13 @@ class LeadDatabase:
             "keywords",
             "processed_at",
             "lead_summary",
+            "qualification_reason",
         }
     )
+
+    # Columns whose Python value must be JSON-serialised before sending to
+    # PostgREST (i.e. they are ``jsonb`` in Postgres, not a native array type).
+    _JSONB_COLUMNS: frozenset[str] = frozenset({"keywords"})
 
     def __init__(self, client: Client | None = None) -> None:
         """Initialise LeadDatabase.
@@ -93,14 +99,7 @@ class LeadDatabase:
     # ------------------------------------------------------------------
 
     def post_exists(self, post_id: str) -> bool:
-        """Return True if *post_id* already exists in the posts table.
-
-        Args:
-            post_id: The Reddit post ID to check.
-
-        Raises:
-            DatabaseError: On Supabase query failure.
-        """
+        """Return True if *post_id* already exists in the posts table."""
         try:
             resp = (
                 self._client.table(POSTS_TABLE)
@@ -116,20 +115,7 @@ class LeadDatabase:
             ) from exc
 
     def get_existing_post_ids(self, post_ids: list[str]) -> set[str]:
-        """Return the subset of *post_ids* that already exist in Supabase.
-
-        Performs a single batched ``IN`` query rather than one query per post,
-        which is much more efficient for large batches.
-
-        Args:
-            post_ids: List of Reddit post IDs to check.
-
-        Returns:
-            Set of IDs that are already stored.
-
-        Raises:
-            DatabaseError: On Supabase query failure.
-        """
+        """Return the subset of *post_ids* that already exist in Supabase."""
         if not post_ids:
             return set()
 
@@ -145,14 +131,64 @@ class LeadDatabase:
             raise DatabaseError("Batch existence check failed.") from exc
 
     # ------------------------------------------------------------------
-    # Insertion
+    # Record preparation
     # ------------------------------------------------------------------
 
     def _prepare_record(self, lead: dict[str, Any]) -> dict[str, Any]:
-        """Strip unknown columns and inject ``created_at`` if missing."""
-        record = {k: v for k, v in lead.items() if k in self._ALLOWED_COLUMNS}
+        """
+        Strip unknown columns, serialise jsonb fields, and inject defaults.
 
-        # Always set created_at to now (UTC) if not already provided
+        Key transformations:
+          - ``keywords`` (list[str]) → JSON string (required for jsonb columns)
+          - ``status`` defaulted to ``'new'`` if absent
+          - ``created_at`` defaulted to now (UTC) if absent
+          - ``confidence`` coerced to float (Postgres ``numeric`` column)
+          - ``intent_score`` coerced to int (Postgres ``integer`` column)
+        """
+        record: dict[str, Any] = {}
+
+        for k, v in lead.items():
+            if k not in self._ALLOWED_COLUMNS:
+                continue
+
+            # ── jsonb columns: serialise Python list/dict → JSON string ──────
+            if k in self._JSONB_COLUMNS:
+                if v is None:
+                    record[k] = json.dumps([])
+                elif isinstance(v, (list, dict)):
+                    record[k] = json.dumps(v)
+                elif isinstance(v, str):
+                    # Already a JSON string (e.g. from a previous serialisation)
+                    try:
+                        json.loads(v)   # validate it's valid JSON
+                        record[k] = v
+                    except json.JSONDecodeError:
+                        record[k] = json.dumps([v])
+                else:
+                    record[k] = json.dumps([str(v)])
+                continue
+
+            # ── Numeric coercions ─────────────────────────────────────────────
+            if k == "intent_score":
+                try:
+                    record[k] = max(0, min(100, int(v))) if v is not None else 0
+                except (TypeError, ValueError):
+                    record[k] = 0
+                continue
+
+            if k == "confidence":
+                try:
+                    record[k] = max(0.0, min(1.0, float(v))) if v is not None else 0.0
+                except (TypeError, ValueError):
+                    record[k] = 0.0
+                continue
+
+            record[k] = v
+
+        # ── Inject required defaults ─────────────────────────────────────────
+        if "status" not in record or not record["status"]:
+            record["status"] = "new"
+
         if "created_at" not in record:
             record["created_at"] = datetime.now(timezone.utc).strftime(
                 "%Y-%m-%dT%H:%M:%SZ"
@@ -160,11 +196,19 @@ class LeadDatabase:
 
         return record
 
+    # ------------------------------------------------------------------
+    # Insertion
+    # ------------------------------------------------------------------
+
     def insert_lead(self, lead: dict[str, Any]) -> dict[str, Any]:
-        """Insert a single lead into the posts table.
+        """
+        Insert a single lead into the posts table.
+
+        Logs the full payload and the full Supabase error response on failure
+        so schema mismatches are immediately visible in logs.
 
         Args:
-            lead: Normalised lead dict from reddit_parser.
+            lead: Normalised + scored lead dict.
 
         Returns:
             The row returned by Supabase after insertion.
@@ -181,19 +225,45 @@ class LeadDatabase:
         record = self._prepare_record(lead)
         post_id = record["post_id"]
 
+        # Log the exact payload going to Supabase at DEBUG level
+        logger.debug(
+            "INSERT payload for post_id=%s:\n%s",
+            post_id,
+            json.dumps(record, ensure_ascii=False, indent=2, default=str),
+        )
+
         try:
             resp = self._client.table(POSTS_TABLE).insert(record).execute()
+
             if not resp.data:
+                # Supabase returned no error but also no data — unexpected
                 raise DatabaseError(
-                    f"Empty response after inserting post_id={post_id!r}."
+                    f"Empty response after inserting post_id={post_id!r}. "
+                    "Check RLS policies — the anon key may not have INSERT permission."
                 )
+
             logger.debug("Inserted post_id=%s.", post_id)
             return resp.data[0]
+
         except DatabaseError:
             raise
+
         except Exception as exc:
+            # Extract the raw Supabase / PostgREST error body if available
+            raw_error = _extract_supabase_error(exc)
+
+            logger.error(
+                "Supabase INSERT failed for post_id=%s.\n"
+                "  Error       : %s\n"
+                "  Raw detail  : %s\n"
+                "  Payload sent:\n%s",
+                post_id,
+                exc,
+                raw_error,
+                json.dumps(record, ensure_ascii=False, indent=2, default=str),
+            )
             raise DatabaseError(
-                f"Failed to insert post_id={post_id!r}."
+                f"Failed to insert post_id={post_id!r}: {raw_error or exc}"
             ) from exc
 
     def insert_leads_batch(
@@ -202,11 +272,6 @@ class LeadDatabase:
         existing_ids: set[str] | None = None,
     ) -> tuple[int, int]:
         """Insert multiple leads, skipping duplicates.
-
-        Args:
-            leads:       List of normalised lead dicts.
-            existing_ids: Pre-fetched set of already-stored post_ids.  If
-                          ``None``, a batch lookup is performed automatically.
 
         Returns:
             A 2-tuple: (inserted_count, duplicate_count).
@@ -231,9 +296,55 @@ class LeadDatabase:
 
             try:
                 self.insert_lead(lead)
-                existing_ids.add(post_id)  # prevent in-run duplicates
+                existing_ids.add(post_id)
                 inserted += 1
             except (ValueError, DatabaseError) as exc:
-                logger.error("Failed to insert post_id=%s: %s", post_id, exc)
+                # exc already contains the full Supabase error (logged inside insert_lead)
+                logger.error(
+                    "Skipping post_id=%s after insert failure: %s", post_id, exc
+                )
 
+        logger.info(
+            "Batch insert complete — inserted: %d | duplicates: %d | total: %d",
+            inserted,
+            duplicates,
+            len(leads),
+        )
         return inserted, duplicates
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _extract_supabase_error(exc: Exception) -> str:
+    """
+    Try to extract the raw PostgREST / Supabase error message from an exception.
+
+    The supabase-py client wraps HTTP errors in several layers.  We try each
+    known attribute path and return the most informative string found.
+    """
+    # postgrest-py >= 0.10 wraps errors in APIError with a .message and .details
+    for attr in ("message", "details", "hint", "code"):
+        val = getattr(exc, attr, None)
+        if val:
+            return str(val)
+
+    # Older versions / requests.HTTPError have a response body
+    response = getattr(exc, "response", None)
+    if response is not None:
+        try:
+            body = response.json()
+            return json.dumps(body, ensure_ascii=False)
+        except Exception:
+            try:
+                return response.text
+            except Exception:
+                pass
+
+    # Last resort: string representation of the cause chain
+    cause = getattr(exc, "__cause__", None)
+    if cause:
+        return str(cause)
+
+    return str(exc)

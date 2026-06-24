@@ -1,18 +1,25 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus } from 'lucide-react';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
+
+interface FAQItem {
+  q: string;
+  a: string;
+}
 
 export function Faq() {
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
-  const faqs = [
+  const faqs: FAQItem[] = [
     {
       q: "What Reddit data is used?",
       a: "SignalRadar monitors public subreddits, scanning posts and titles in real time. We do not track private user profiles, and all API interactions strictly adhere to Reddit's data access policies."
     },
     {
       q: "How does intent scoring work?",
-      a: "Every post is analyzed by our AI model powered by Groq Llama-3. It assesses context, semantics, budget statements, timelines, and comparisons to assign an intent score (0-100) and priority level."
+      a: "Every post is analyzed by our AI model. It assesses context, semantics, budget statements, timelines, and comparisons to assign an intent score (0-100) and priority level."
     },
     {
       q: "Does it work for any niche?",
@@ -38,72 +45,77 @@ export function Faq() {
 
   return (
     <section id="faq" className="py-32 px-6 md:px-12 max-w-3xl mx-auto space-y-16 select-none relative z-10">
-      {/* Heading */}
+      {/* Scroll triggered entrance */}
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
+        initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-100px" }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
-        className="text-center space-y-4"
+        viewport={{ once: true, margin: '-100px' }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        className="space-y-16 w-full"
       >
-        <span className="font-mono text-[9px] md:text-[10px] text-[#B8F200] font-bold tracking-widest block uppercase">
-          COMMON QUESTIONS
-        </span>
-        <h2 className="text-3xl md:text-4xl font-display font-bold tracking-tight text-white">
-          Frequently Asked Questions
-        </h2>
-      </motion.div>
+        {/* Section Heading */}
+        <div className="text-center space-y-4">
+          <span className="font-mono text-[9px] md:text-[10px] text-[#C6FF34] font-bold tracking-widest block uppercase">
+            COMMON QUESTIONS
+          </span>
+          <h2 className="text-3xl md:text-5xl font-display font-bold tracking-tight text-white select-none">
+            Frequently Asked Questions
+          </h2>
+        </div>
 
-      {/* Accordion List */}
-      <div className="space-y-4">
-        {faqs.map((faq, idx) => {
-          const isOpen = activeIdx === idx;
-          return (
-            <motion.div
-              key={idx}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ duration: 0.5, delay: idx * 0.05 }}
-              className="glass-panel rounded-2xl bg-[#141414]/30 overflow-hidden border border-white/5"
-            >
-              {/* Question Trigger */}
-              <button
-                onClick={() => toggleAccordion(idx)}
-                className="w-full flex items-center justify-between p-6 text-left text-sm md:text-base font-semibold tracking-wide text-white hover:text-[#B8F200] transition-colors duration-150 cursor-pointer"
+        {/* Accordion List */}
+        <div className="space-y-4">
+          {faqs.map((faq, idx) => {
+            const isOpen = activeIdx === idx;
+            return (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-80px" }}
+                transition={{ duration: 0.5, delay: prefersReducedMotion ? 0 : idx * 0.05 }}
+                className="glass-panel rounded-2xl bg-white/[0.04] border border-white/[0.08] overflow-hidden transition-all duration-350"
               >
-                <span className="pr-6 font-sans">{faq.q}</span>
-                {/* Rotating Plus Icon */}
-                <motion.div
-                  animate={{ rotate: isOpen ? 45 : 0 }}
-                  transition={{ duration: 0.2, ease: "easeInOut" }}
-                  className="flex-shrink-0 text-gray-400"
+                {/* Question Trigger Button */}
+                <button
+                  onClick={() => toggleAccordion(idx)}
+                  className="w-full flex items-center justify-between p-6 text-left text-sm md:text-base font-bold tracking-wide text-white hover:text-[#C6FF34] transition-colors duration-150 cursor-pointer group"
+                  style={{ minHeight: '52px' }}
                 >
-                  <Plus className="w-5 h-5 text-gray-400 group-hover:text-white" />
-                </motion.div>
-              </button>
-
-              {/* Answer Content */}
-              <AnimatePresence initial={false}>
-                {isOpen && (
+                  <span className="pr-6 font-sans select-none">{faq.q}</span>
+                  {/* Rotating Plus Icon */}
                   <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
+                    animate={prefersReducedMotion ? {} : { rotate: isOpen ? 45 : 0 }}
                     transition={{ duration: 0.25, ease: "easeInOut" }}
-                    className="border-t border-white/5"
+                    className={`flex-shrink-0 transition-colors duration-250 ${isOpen ? 'text-[#C6FF34]' : 'text-gray-500'}`}
                   >
-                    <div className="p-6 text-xs md:text-sm text-gray-400 leading-relaxed font-sans select-none">
-                      {faq.a}
-                    </div>
+                    <Plus className="w-5 h-5" />
                   </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          );
-        })}
-      </div>
+                </button>
+
+                {/* Answer Content */}
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25, ease: "easeInOut" }}
+                      className="border-t border-white/5"
+                    >
+                      <div className="p-6 text-xs md:text-sm text-gray-400 leading-relaxed font-sans select-none">
+                        {faq.a}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
+        </div>
+      </motion.div>
     </section>
   );
 }
+
 export default Faq;

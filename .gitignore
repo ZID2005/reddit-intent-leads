@@ -165,3 +165,7 @@ Thumbs.db
 # Local scraped cache files
 reddit_posts.json
 
+# Local project-scoped binaries
+.bin/
+
+

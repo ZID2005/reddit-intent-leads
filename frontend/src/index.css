@@ -1,37 +1,98 @@
 @import "tailwindcss";
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=clash-display@200,300,400,500,600,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
 
 @theme {
-  --color-carbon-dark: #171717;
-  --color-carbon-card: #1E1E1E;
-  --color-carbon-light: #262626;
+  --color-carbon-dark: #070708;
+  --color-carbon-card: #0A0A0A;
+  --color-carbon-light: #141414;
   --color-lime: #C6FF34;
   --color-lime-accent: #C6FF34;
-  --color-mutedText: #888888;
-  --color-amberAccent: #FFB347;
-  --color-slateAccent: #555555;
+  --color-mutedText: #8E9196;
+  --color-amberAccent: #E8A838;
+  --color-slateAccent: #333335;
   
   --font-mono: "DM Mono", monospace;
-  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --font-display: "Clash Display", system-ui, sans-serif;
 }
 
 @layer base {
   body {
-    background-color: #171717;
+    background-color: #070708;
     color: #FFFFFF;
-    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+    font-family: "DM Sans", system-ui, sans-serif;
     overflow-x: hidden;
   }
 }
 
-/* Glassmorphism Styles */
+/* Glassmorphism Styles - Liquid Glass */
 .glass-panel {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* Card Sheen Sweep Hover Effect */
+.sheen-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s ease;
+}
+
+.sheen-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08),
+    transparent
+  );
+  transform: skewX(-20deg);
+  transition: left 0.75s cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+
+.sheen-card:hover::before {
+  left: 150%;
+}
+
+/* Card Corner Ticks */
+.corner-ticks {
+  position: relative;
+}
+
+.corner-ticks::after, .corner-ticks::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background-color: rgba(255, 255, 255, 0.1);
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  pointer-events: none;
+}
+
+.corner-ticks::before {
+  width: 8px;
+  height: 1px;
+}
+
+.corner-ticks::after {
+  width: 1px;
+  height: 8px;
+}
+
+.corner-ticks:hover::before, .corner-ticks:hover::after {
+  background-color: #C6FF34;
+  box-shadow: 0 0 6px #C6FF34;
 }
 
 .glass-inset {
@@ -188,3 +249,73 @@
   background: #FFB347;
   box-shadow: 0 0 6px rgba(255, 179, 71, 0.5);
 }
+
+/* ── Liquid Glass Premium Danger Button ───────────────────────────────────── */
+.btn-liquid-glass-danger {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 100%) !important;
+  backdrop-filter: blur(28px) saturate(220%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(220%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 
+    0 8px 32px 0 rgba(0, 0, 0, 0.5),
+    inset 0 1.5px 0 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1.5px 0 0 rgba(0, 0, 0, 0.4),
+    inset 0 8px 16px -6px rgba(255, 255, 255, 0.15) !important;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Simulated 3D curved surface highlight */
+.btn-liquid-glass-danger::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 42%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Sweep reflection sheen */
+.btn-liquid-glass-danger::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1) 15%,
+    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0.1) 85%,
+    transparent
+  );
+  transform: skewX(-25deg);
+  transition: left 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.btn-liquid-glass-danger:hover {
+  border-color: rgba(239, 68, 68, 0.45) !important;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.14) 0%, rgba(255, 255, 255, 0.04) 100%) !important;
+  box-shadow: 
+    0 12px 40px 0 rgba(239, 68, 68, 0.25),
+    inset 0 1.5px 0 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1.5px 0 0 rgba(239, 68, 68, 0.25),
+    inset 0 8px 16px -6px rgba(255, 255, 255, 0.25) !important;
+  color: #fca5a5 !important;
+}
+
+.btn-liquid-glass-danger:hover::after {
+  left: 150%;
+}
+

@@ -65,6 +65,9 @@ logging.basicConfig(
 for _noisy in ("httpx", "hpack", "httpcore", "apscheduler.executors"):
     logging.getLogger(_noisy).setLevel(logging.WARNING)
 
+# Show full insert payloads and Supabase errors during debugging
+logging.getLogger("backend.database").setLevel(logging.DEBUG)
+
 logger = logging.getLogger(__name__)
 
 
@@ -83,9 +86,15 @@ class SchedulerState:
         self.last_run_id: str | None = None
         self.last_run_inserted: int = 0
         self.last_run_fetched: int = 0
+        self.last_run_qualified: int = 0
+        self.last_run_filtered_out: int = 0
         self.last_run_scored: int = 0
         self.last_run_duplicates: int = 0
         self.last_run_failures: int = 0
+        self.last_run_qualified_pct: float = 0.0
+        self.last_run_filtered_pct: float = 0.0
+        self.last_run_groq_success_pct: float = 0.0
+        self.last_run_groq_json_fail_pct: float = 0.0
         self.last_error: str | None = None
 
     def set(self, **kwargs: Any) -> None:
@@ -103,9 +112,15 @@ class SchedulerState:
                 "last_run_id": self.last_run_id,
                 "last_run_inserted": self.last_run_inserted,
                 "last_run_fetched": self.last_run_fetched,
+                "last_run_qualified": self.last_run_qualified,
+                "last_run_filtered_out": self.last_run_filtered_out,
                 "last_run_scored": self.last_run_scored,
                 "last_run_duplicates": self.last_run_duplicates,
                 "last_run_failures": self.last_run_failures,
+                "last_run_qualified_pct": self.last_run_qualified_pct,
+                "last_run_filtered_pct": self.last_run_filtered_pct,
+                "last_run_groq_success_pct": self.last_run_groq_success_pct,
+                "last_run_groq_json_fail_pct": self.last_run_groq_json_fail_pct,
                 "last_error": self.last_error,
             }
 
@@ -180,8 +195,11 @@ def pipeline_job() -> dict[str, Any]:
 
     run_id = str(uuid.uuid4())
     started_at = _now_iso()
+    run_started_wall = time.monotonic()  # for runtime measurement
     metrics: dict[str, Any] = {
         "fetched": 0,
+        "qualified": 0,
+        "filtered_out": 0,
         "scored": 0,
         "inserted": 0,
         "duplicates": 0,
@@ -209,6 +227,7 @@ def pipeline_job() -> dict[str, Any]:
         # ── Step 1: Import pipeline components ───────────────────────────────
         from backend.rss_collector import collect_all
         from backend.reddit_parser import parse_entries
+        from backend.lead_qualifier import qualify_leads
         from backend.database import LeadDatabase, DatabaseError
         from app.scorer import load_config, analyze_post
         from datetime import datetime as _dt
@@ -237,7 +256,7 @@ def pipeline_job() -> dict[str, Any]:
             return metrics
 
         # ── Step 4: Parse & deduplicate ──────────────────────────────────────
-        logger.info("[2/3] Parsing and deduplicating...")
+        logger.info("[2/4] Parsing and deduplicating...")
         leads, skipped_parse = parse_entries(raw_entries)
 
         if not leads:
@@ -263,20 +282,46 @@ def pipeline_job() -> dict[str, Any]:
             _finalise(run_id, "success", metrics, next_run_iso)
             return metrics
 
+        # ── Step 4.5: Lead qualification pre-filter ───────────────────────────
+        logger.info("[3/4] Running lead qualification pre-filter...")
+        qualified_leads, filtered_leads = qualify_leads(new_leads)
+        qualified_count = len(qualified_leads)
+        filtered_count = len(filtered_leads)
+        metrics["qualified"] = qualified_count
+        metrics["filtered_out"] = filtered_count
+
+        logger.info(
+            "Pre-filter: %d qualified | %d filtered out (no intent signal)",
+            qualified_count,
+            filtered_count,
+        )
+
+        if not qualified_leads:
+            logger.info("No qualified leads to score — all filtered out.")
+            total_new = len(new_leads)
+            metrics["qualified_pct"] = (qualified_count / total_new * 100) if total_new > 0 else 0.0
+            metrics["filtered_pct"] = (filtered_count / total_new * 100) if total_new > 0 else 0.0
+            metrics["groq_success_pct"] = 0.0
+            metrics["groq_json_fail_pct"] = 0.0
+            _finalise(run_id, "success", metrics, next_run_iso)
+            return metrics
+
         # ── Step 5: Score with Groq ──────────────────────────────────────────
-        logger.info("[3/3] Scoring %d new leads with Groq...", len(new_leads))
+        logger.info("[4/4] Scoring %d qualified leads with Groq...", qualified_count)
         scored_leads = []
         successfully_scored = 0
+        json_fail_count = 0
 
-        for i, lead in enumerate(new_leads, start=1):
+        for i, lead in enumerate(qualified_leads, start=1):
             post_id = lead["post_id"]
             title = lead.get("title", "")
             logger.info(
-                "[%d/%d] Scoring %s: '%s'", i, len(new_leads), post_id, title[:50]
+                "[%d/%d] Scoring %s: '%s'", i, qualified_count, post_id, title[:50]
             )
+            post_stats = {"json_failed": False, "success": False}
             try:
-                scored_lead = analyze_post(lead, api_key)
-                if not scored_lead.get("reason", "").startswith("Analysis failed"):
+                scored_lead = analyze_post(lead, api_key, stats=post_stats)
+                if not scored_lead.get("reason", "").startswith("Analysis failed") and scored_lead.get("reason") != "classifier_error":
                     successfully_scored += 1
                 scored_leads.append(scored_lead)
             except Exception as exc:
@@ -299,6 +344,9 @@ def pipeline_job() -> dict[str, Any]:
                 )
                 scored_leads.append(fallback)
 
+            if post_stats.get("json_failed"):
+                json_fail_count += 1
+
             time.sleep(0.5)  # Rate-limit Groq API gently
 
         metrics["scored"] = successfully_scored
@@ -313,13 +361,26 @@ def pipeline_job() -> dict[str, Any]:
                 metrics["failures"] = metrics.get("failures", 0) + 1
 
         metrics["inserted"] = inserted_count
+        elapsed_s = time.monotonic() - run_started_wall
         logger.info(
-            "Run complete — inserted: %d | scored: %d | duplicates: %d | failures: %d",
-            inserted_count,
+            "Run complete — fetched: %d | qualified: %d | filtered: %d | scored: %d"
+            " | inserted: %d | duplicates: %d | failures: %d | runtime: %.0fs (%.1fm)",
+            metrics["fetched"],
+            qualified_count,
+            filtered_count,
             successfully_scored,
+            inserted_count,
             duplicates_count,
             metrics["failures"],
+            elapsed_s,
+            elapsed_s / 60,
         )
+
+        total_new = len(new_leads)
+        metrics["qualified_pct"] = (qualified_count / total_new * 100) if total_new > 0 else 0.0
+        metrics["filtered_pct"] = (filtered_count / total_new * 100) if total_new > 0 else 0.0
+        metrics["groq_success_pct"] = (successfully_scored / qualified_count * 100) if qualified_count > 0 else 0.0
+        metrics["groq_json_fail_pct"] = (json_fail_count / qualified_count * 100) if qualified_count > 0 else 0.0
 
         final_status = "success" if metrics["failures"] == 0 else "partial"
         _finalise(run_id, final_status, metrics, next_run_iso)
@@ -361,9 +422,15 @@ def _finalise(
         next_run_at=next_run_iso,
         last_run_inserted=metrics.get("inserted", 0),
         last_run_fetched=metrics.get("fetched", 0),
+        last_run_qualified=metrics.get("qualified", 0),
+        last_run_filtered_out=metrics.get("filtered_out", 0),
         last_run_scored=metrics.get("scored", 0),
         last_run_duplicates=metrics.get("duplicates", 0),
         last_run_failures=metrics.get("failures", 0),
+        last_run_qualified_pct=metrics.get("qualified_pct", 0.0),
+        last_run_filtered_pct=metrics.get("filtered_pct", 0.0),
+        last_run_groq_success_pct=metrics.get("groq_success_pct", 0.0),
+        last_run_groq_json_fail_pct=metrics.get("groq_json_fail_pct", 0.0),
         last_error=error,
     )
 
@@ -504,9 +571,15 @@ class StatusResponse(BaseModel):
     last_run_id: str | None
     last_run_inserted: int
     last_run_fetched: int
+    last_run_qualified: int
+    last_run_filtered_out: int
     last_run_scored: int
     last_run_duplicates: int
     last_run_failures: int
+    last_run_qualified_pct: float
+    last_run_filtered_pct: float
+    last_run_groq_success_pct: float
+    last_run_groq_json_fail_pct: float
     last_error: str | None
 
 

@@ -9,11 +9,16 @@ from app.scorer import (
     get_fallback_category,
     analyze_post,
     score_posts_file,
-    GroqScorerError
+    GroqScorerError,
+    MAX_RETRIES
 )
 
 
 class TestRedditScorer(unittest.TestCase):
+
+    def setUp(self):
+        from backend.lead_qualifier import QualifierStats
+        QualifierStats.reset()
 
     @patch("app.scorer.os.getenv")
     @patch("app.scorer.load_dotenv")
@@ -114,7 +119,7 @@ class TestRedditScorer(unittest.TestCase):
         with self.assertRaises(GroqScorerError):
             call_groq_api("Title", "Body", "mock_key")
 
-        self.assertEqual(mock_post.call_count, 5)
+        self.assertEqual(mock_post.call_count, MAX_RETRIES)
 
     @patch("app.scorer.requests.post")
     def test_call_groq_api_invalid_json(self, mock_post):
@@ -162,7 +167,7 @@ class TestRedditScorer(unittest.TestCase):
 
     def test_get_fallback_category(self):
         self.assertEqual(get_fallback_category("buying-intent"), "buying_intent")
-        self.assertEqual(get_fallback_category("seeking info"), "information_seeking")
+        self.assertEqual(get_fallback_category("seeking info"), "research")
         self.assertEqual(get_fallback_category("some random text"), "discussion")
 
     @patch("app.scorer.call_groq_api")
@@ -211,7 +216,7 @@ class TestRedditScorer(unittest.TestCase):
         self.assertEqual(result["intent_score"], 0)
         self.assertEqual(result["confidence"], 0.0)
         self.assertEqual(result["category"], "discussion")
-        self.assertIn("Analysis failed due to error", result["reason"])
+        self.assertEqual(result["reason"], "classifier_error")
         self.assertEqual(result["draft_reply"], "")
         self.assertEqual(result["keywords"], [])
         self.assertEqual(result["priority"], "low")
@@ -250,6 +255,75 @@ class TestRedditScorer(unittest.TestCase):
         mock_load.assert_called_once()
         mock_dump.assert_called_once()
         mock_analyze.assert_called_once()
+
+    @patch("app.scorer.time.sleep")
+    @patch("app.scorer.requests.post")
+    def test_call_groq_api_json_failed_stats(self, mock_post, mock_sleep):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "content": "Invalid JSON"
+                    }
+                }
+            ]
+        }
+        mock_post.return_value = mock_response
+
+        stats = {}
+        with self.assertRaises(GroqScorerError):
+            call_groq_api("Title", "Body", "mock_key", stats=stats)
+
+        self.assertTrue(stats.get("json_failed"))
+
+    @patch("app.scorer.time.sleep")
+    @patch("app.scorer.requests.post")
+    def test_call_groq_api_json_repair_success_stats(self, mock_post, mock_sleep):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "content": '{\n"intent_score": 85,\n"confidence": 0.9,\n"category": "buying_intent",\n"reason": "Looking to buy",\n"draft_reply": "Hi",\n"keywords": ["buy"],\n"lead_summary": "Looking to buy",\n}'
+                    }
+                }
+            ]
+        }
+        mock_post.return_value = mock_response
+
+        stats = {}
+        result = call_groq_api("Title", "Body", "mock_key", stats=stats)
+        self.assertEqual(result["intent_score"], 85)
+        self.assertTrue(stats.get("json_failed"))
+
+
+    def test_groq_rejection_diagnostics(self):
+        import app.scorer
+        app.scorer.GROQ_REJECTIONS_IN_MEMORY = []
+
+        post = {"title": "Help with CRM", "subreddit": "CRM"}
+        scored_post = {
+            "title": "Help with CRM",
+            "subreddit": "CRM",
+            "intent_score": 30,
+            "category": "discussion",
+            "reason": "Not enough intent signal."
+        }
+
+        app.scorer.add_groq_rejection(post, scored_post)
+        self.assertEqual(len(app.scorer.GROQ_REJECTIONS_IN_MEMORY), 1)
+        self.assertEqual(app.scorer.GROQ_REJECTIONS_IN_MEMORY[0]["title"], "Help with CRM")
+        self.assertEqual(app.scorer.GROQ_REJECTIONS_IN_MEMORY[0]["intent_score"], 30)
+
+        # Add 25 rejections
+        for i in range(25):
+            app.scorer.add_groq_rejection(post, scored_post)
+
+        # Should keep only 20
+        self.assertEqual(len(app.scorer.GROQ_REJECTIONS_IN_MEMORY), 20)
 
 
 if __name__ == "__main__":

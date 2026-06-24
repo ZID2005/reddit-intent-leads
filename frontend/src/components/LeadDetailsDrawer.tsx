@@ -5,7 +5,7 @@ import {
   Zap, Target, MessageSquare, Tag, FileText, Brain,
   AlertTriangle, ChevronRight, Loader2
 } from 'lucide-react';
-import { Lead, LeadDetail } from '../types/lead';
+import { Lead, LeadDetail, QualificationReason } from '../types/lead';
 import { useLeadDetail } from '../hooks/useLeadDetail';
 import { cn } from '../lib/utils';
 
@@ -39,6 +39,15 @@ const actionConfig: Record<string, { label: string; color: string }> = {
   reply_immediately: { label: 'Reply Immediately', color: 'text-lime bg-lime/10 border-lime/40' },
   monitor:           { label: 'Monitor',           color: 'text-amberAccent bg-amberAccent/10 border-amberAccent/40' },
   ignore:            { label: 'Ignore',            color: 'text-gray-400 bg-white/5 border-white/10' },
+};
+
+const qualSignalConfig: Record<QualificationReason, { label: string; icon: string; color: string }> = {
+  recommendation_request: { label: 'Recommendation Request', icon: '💬', color: 'text-purple-400 bg-purple-400/10 border-purple-400/30' },
+  comparison_signal:      { label: 'Comparison Signal',      icon: '⚖️', color: 'text-blue-400 bg-blue-400/10 border-blue-400/30' },
+  pricing_signal:         { label: 'Pricing Signal',         icon: '💰', color: 'text-amberAccent bg-amberAccent/10 border-amberAccent/30' },
+  migration_signal:       { label: 'Migration Signal',       icon: '🔄', color: 'text-cyan-400 bg-cyan-400/10 border-cyan-400/30' },
+  problem_signal:         { label: 'Problem Signal',         icon: '⚠️', color: 'text-red-400 bg-red-400/10 border-red-400/30' },
+  tool_search:            { label: 'Tool Search',            icon: '🔍', color: 'text-lime bg-lime/10 border-lime/30' },
 };
 
 function formatTime(iso: string) {
@@ -334,6 +343,32 @@ export function LeadDetailsDrawer({
                       </p>
                     </div>
                   </section>
+
+                  {/* ── Qualification Signal ── */}
+                  {d.qualification_reason && (() => {
+                    const qCfg = qualSignalConfig[d.qualification_reason] ?? {
+                      label: d.qualification_reason,
+                      icon: '🎯',
+                      color: 'text-gray-400 bg-white/5 border-white/10',
+                    };
+                    return (
+                      <section>
+                        <SectionLabel icon={<Zap className="w-3.5 h-3.5" />} label="Qualification Signal" />
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            'inline-flex items-center gap-2 text-xs font-mono font-bold px-3 py-1.5 rounded-lg border uppercase tracking-wider',
+                            qCfg.color
+                          )}>
+                            <span>{qCfg.icon}</span>
+                            {qCfg.label}
+                          </span>
+                          <span className="text-[10px] font-mono text-mutedText/60">
+                            pre-filter match
+                          </span>
+                        </div>
+                      </section>
+                    );
+                  })()}
 
                   {/* ── Suggested Action ── */}
                   {d.recommended_action && (

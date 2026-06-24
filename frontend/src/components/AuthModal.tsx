@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { Mail, Lock, X, Sparkles, AlertCircle } from 'lucide-react';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -16,9 +17,10 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   // Reset modal state when opened or when initialMode changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       setMode(initialMode);
       setEmail('');
@@ -49,7 +51,6 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
 
         if (error) throw error;
         
-        // If email confirmation is required, let user know
         if (data.user && !data.session) {
           setSuccessMsg("Registration successful! Please check your email for verification.");
         } else {
@@ -106,30 +107,35 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
             className="absolute inset-0 bg-black/60 backdrop-blur-md"
           />
 
-          {/* Modal Container */}
+          {/* Modal Container: scale 0.95 to 1.0 fade-in */}
           <motion.div
-            initial={{ scale: 0.95, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            transition={{ type: "spring", duration: 0.5, bounce: 0.15 }}
-            className="relative w-full max-w-md glass-panel bg-[#0D0D0D]/90 p-8 rounded-2xl border border-white/10 shadow-[0_8px_48px_rgba(0,0,0,0.6)] z-10"
+            initial={prefersReducedMotion ? { opacity: 0 } : { scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { scale: 0.95, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="relative w-full max-w-md glass-panel bg-[#070708]/95 p-8 rounded-2xl border border-white/[0.08] shadow-[0_24px_64px_rgba(0,0,0,0.8),0_0_40px_rgba(198,255,52,0.02)] z-10"
           >
             {/* Close Button */}
             <button
               onClick={onClose}
               className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+              style={{ minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               <X className="w-4 h-4" />
             </button>
 
-            {/* Title */}
+            {/* Brand Logo & Title */}
             <div className="text-center mb-6">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full glass-inset bg-white/[0.01] mb-3 text-[#B8F200] font-mono text-[10px] tracking-widest uppercase">
-                <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                {mode === 'login' ? 'Welcome Back' : 'Get Started'}
+              {/* Logo */}
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <div className="relative w-2 h-2 rounded-full bg-[#C6FF34] shadow-[0_0_6px_#C6FF34]" />
+                <span className="font-mono text-xs font-bold tracking-wider text-white uppercase select-none">
+                  SignalRadar
+                </span>
               </div>
+              
               <h2 className="text-2xl font-bold tracking-tight font-display text-white">
-                {mode === 'login' ? 'Access SignalRadar' : 'Create Your Account'}
+                Get Started Free
               </h2>
               <p className="text-xs text-gray-500 font-sans mt-1">
                 {mode === 'login'
@@ -148,78 +154,17 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
 
             {/* Success Message */}
             {successMsg && (
-              <div className="flex items-center gap-2 p-3.5 mb-4 text-[#B8F200] bg-[#B8F200]/10 border border-[#B8F200]/20 rounded-xl text-xs font-sans">
+              <div className="flex items-center gap-2 p-3.5 mb-4 text-[#C6FF34] bg-[#C6FF34]/10 border border-[#C6FF34]/20 rounded-xl text-xs font-sans">
                 <Sparkles className="w-4 h-4 flex-shrink-0" />
                 <span>{successMsg}</span>
               </div>
             )}
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Email */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-mono tracking-wider text-gray-400 uppercase">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@company.com"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-black/40 border border-white/10 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#B8F200]/30 transition-all font-sans"
-                  />
-                </div>
-              </div>
-
-              {/* Password */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-mono tracking-wider text-gray-400 uppercase">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-black/40 border border-white/10 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#B8F200]/30 transition-all font-sans"
-                  />
-                </div>
-              </div>
-
-              {/* Submit CTA */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 rounded-xl bg-[#B8F200] hover:bg-[#B8F200]/90 text-[#0D0D0D] font-mono text-xs font-bold uppercase tracking-wider transition-all duration-150 shadow-[0_0_20px_rgba(184,242,0,0.2)] hover:shadow-[0_0_24px_rgba(184,242,0,0.35)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading
-                  ? 'Authenticating...'
-                  : mode === 'login'
-                  ? 'Log In'
-                  : 'Start Monitoring'}
-              </button>
-            </form>
-
-            {/* Separator */}
-            <div className="relative flex items-center justify-center my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/5" />
-              </div>
-              <span className="relative px-3 bg-[#0D0D0D] text-[10px] font-mono text-gray-600 uppercase tracking-widest">
-                Or continue with
-              </span>
-            </div>
-
-            {/* Google OAuth Button */}
+            {/* Google OAuth Button with Google icon */}
             <button
               onClick={handleGoogleLogin}
-              className="w-full py-3 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-white font-mono text-xs uppercase tracking-wider transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3 rounded-xl border border-white/8 hover:border-white/15 bg-white/[0.02] hover:bg-white/[0.04] text-white font-mono text-xs uppercase tracking-wider transition-all duration-150 flex items-center justify-center gap-2.5 cursor-pointer"
+              style={{ minHeight: '44px' }}
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path
@@ -242,7 +187,68 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
               Google
             </button>
 
-            {/* Toggle Mode Link */}
+            {/* Separator OR */}
+            <div className="relative flex items-center justify-center my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-white/5" />
+              </div>
+              <span className="relative px-3 bg-[#070708] text-[9px] font-mono text-gray-500 uppercase tracking-widest">
+                OR
+              </span>
+            </div>
+
+            {/* Credential Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Email Input with volt-lime focus ring */}
+              <div className="space-y-1.5 text-left">
+                <label className="text-[9px] font-mono tracking-widest text-gray-400 uppercase">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@company.com"
+                    className="w-full pl-11 pr-4 py-3 rounded-xl bg-black/30 border border-white/8 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#C6FF34] focus:ring-1 focus:ring-[#C6FF34] transition-all font-sans"
+                    style={{ minHeight: '44px' }}
+                  />
+                </div>
+              </div>
+
+              {/* Password Input with volt-lime focus ring */}
+              <div className="space-y-1.5 text-left">
+                <label className="text-[9px] font-mono tracking-widest text-gray-400 uppercase">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-11 pr-4 py-3 rounded-xl bg-black/30 border border-white/8 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-[#C6FF34] focus:ring-1 focus:ring-[#C6FF34] transition-all font-sans"
+                    style={{ minHeight: '44px' }}
+                  />
+                </div>
+              </div>
+
+              {/* Primary Continue Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 rounded-xl bg-[#C6FF34] hover:brightness-105 text-[#070708] font-mono text-xs font-bold uppercase tracking-wider transition-all duration-150 shadow-[0_0_20px_rgba(198,255,52,0.2)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ minHeight: '44px' }}
+              >
+                {loading ? 'Authenticating...' : 'Continue'}
+              </button>
+            </form>
+
+            {/* Toggle Link */}
             <div className="text-center mt-6">
               <button
                 onClick={() => {
@@ -251,6 +257,7 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
                   setSuccessMsg(null);
                 }}
                 className="text-[11px] font-sans text-gray-500 hover:text-white transition-colors cursor-pointer"
+                style={{ minHeight: '44px' }}
               >
                 {mode === 'login'
                   ? "Don't have an account? Sign up free"
@@ -263,3 +270,5 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
     </AnimatePresence>
   );
 }
+
+export default AuthModal;

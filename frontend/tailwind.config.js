@@ -22,7 +22,9 @@ export default {
         slateAccent: '#555555'
       },
       fontFamily: {
+        display: ['Syne', 'sans-serif'],
         mono: ['"DM Mono"', 'monospace'],
+        body: ['"DM Sans"', 'sans-serif'],
         sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       backdropBlur: {
