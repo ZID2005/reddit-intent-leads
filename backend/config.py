@@ -75,3 +75,33 @@ SCHEDULER_VALID_INTERVALS: tuple[int, ...] = (1, 3, 6, 12, 24)
 # Port the FastAPI scheduler HTTP server listens on.
 SCHEDULER_API_PORT: int = int(os.getenv("SCHEDULER_API_PORT", "8000"))
 
+
+# ---------------------------------------------------------------------------
+# Startup validation (Fail fast)
+# ---------------------------------------------------------------------------
+# Skip validation during pytest runs to avoid breaking unit tests
+if not os.getenv("PYTEST_CURRENT_TEST"):
+    _missing = []
+    if not SUPABASE_URL:
+        _missing.append("SUPABASE_URL")
+    if not SUPABASE_KEY:
+        _missing.append("SUPABASE_KEY")
+    if not GROQ_API_KEY:
+        _missing.append("GROQ_API_KEY")
+    if _missing:
+        raise ValueError(
+            f"CRITICAL STARTUP ERROR: Required environment variable(s) missing: {', '.join(_missing)}. "
+            "Please configure your .env file at the project root."
+        )
+
+# ---------------------------------------------------------------------------
+# Production CORS Allowed Origins
+# ---------------------------------------------------------------------------
+_origins_raw = os.getenv("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS: list[str] = [
+    origin.strip() for origin in _origins_raw.split(",") if origin.strip()
+]
+if not ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS = ["*"]
+
+

@@ -53,11 +53,15 @@ export function Navbar({ user, onOpenAuth, onNavigateToDashboard, onNavigateToPr
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 h-20 z-40 transition-all duration-300 flex items-center justify-between px-6 md:px-12 select-none ${
+        className={`fixed z-40 transition-all duration-500 flex items-center justify-between select-none ${
           scrolled
-            ? 'bg-[#040404]/95 border-b border-white/6 backdrop-blur-3xl shadow-[0_8px_32px_rgba(0,0,0,0.8)]'
-            : 'bg-[#080808]/85 border-b border-white/6 backdrop-blur-[20px]'
+            ? 'top-2 left-2 right-2 md:top-4 md:left-8 md:right-8 h-16 px-6 md:px-10 rounded-2xl border border-white/12 shadow-[0_16px_48px_rgba(0,0,0,0.7),inset_0_1.5px_0_rgba(255,255,255,0.2)] bg-gradient-to-br from-white/[0.05] to-white/[0.01]'
+            : 'top-4 left-4 right-4 md:top-6 md:left-10 md:right-10 h-18 px-6 md:px-12 rounded-3xl border border-white/8 shadow-[0_12px_32px_rgba(0,0,0,0.4),inset_0_1.5px_0_rgba(255,255,255,0.1)] bg-gradient-to-br from-white/[0.03] to-white/[0.002]'
         }`}
+        style={{
+          backdropFilter: 'blur(32px) saturate(210%)',
+          WebkitBackdropFilter: 'blur(32px) saturate(210%)',
+        }}
       >
         {/* Left: SignalRadar logo wordmark in Clash Display with a small volt-lime pulsing dot */}
         <div 
@@ -127,12 +131,12 @@ export function Navbar({ user, onOpenAuth, onNavigateToDashboard, onNavigateToPr
                 whileTap={{ scale: 0.97 }}
                 whileHover={{ scale: 1.02 }}
                 onClick={onLogout}
-                className="btn-liquid-glass-danger flex items-center gap-1.5 px-3.5 py-2 rounded-full cursor-pointer font-mono text-[10px] text-white/50 select-none outline-none uppercase tracking-wider"
+                className="btn-liquid-glass-danger flex items-center gap-1.5 px-3.5 py-2 rounded-full cursor-pointer font-mono text-[10px] text-red-400/70 select-none outline-none uppercase tracking-wider"
                 style={{ minHeight: '38px' }}
               >
                 {/* Specular glass reflection crescent */}
-                <div className="absolute top-0.5 left-2 right-2 h-[35%] bg-gradient-to-b from-white/20 to-transparent rounded-t-full pointer-events-none z-10" />
-                <LogOut className="w-3.5 h-3.5 text-white/40 relative z-10" />
+                <div className="absolute top-0.5 left-2.5 right-2.5 h-[35%] bg-gradient-to-b from-white/20 to-transparent rounded-t-full pointer-events-none z-10" />
+                <LogOut className="w-3.5 h-3.5 relative z-10" />
                 <span className="relative z-10">Log Out</span>
               </motion.button>
 
@@ -241,16 +245,21 @@ export function Navbar({ user, onOpenAuth, onNavigateToDashboard, onNavigateToPr
                           {user.email}
                         </span>
                       </div>
-                      <button
+                      <motion.button
+                        whileTap={{ scale: 0.97 }}
+                        whileHover={{ scale: 1.02 }}
                         onClick={() => {
                           onLogout();
                           setMobileMenuOpen(false);
                         }}
-                        className="p-2 rounded text-red-400 hover:bg-white/5 transition-colors cursor-pointer"
-                        style={{ minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        className="btn-liquid-glass-danger flex items-center justify-center rounded-xl cursor-pointer outline-none relative overflow-hidden text-red-400/70"
+                        style={{ width: '42px', height: '42px' }}
+                        title="Log Out"
                       >
-                        <LogOut className="w-4 h-4" />
-                      </button>
+                        {/* Specular glass reflection crescent */}
+                        <div className="absolute top-0.5 left-1.5 right-1.5 h-[35%] bg-gradient-to-b from-white/20 to-transparent rounded-t-xl pointer-events-none z-10" />
+                        <LogOut className="w-4 h-4 relative z-10" />
+                      </motion.button>
                     </div>
 
                     <button

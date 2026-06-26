@@ -6,6 +6,8 @@ export interface ToastItem {
   subreddit: string;
   score: number;
   duration?: number;
+  type?: 'lead' | 'system' | 'success' | 'info';
+  message?: string;
 }
 
 // Global list of active toasts and listeners to sync across components

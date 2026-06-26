@@ -5,7 +5,9 @@ import { Navbar } from '../sections/Navbar';
 import { Hero } from '../sections/Hero';
 import { Problem } from '../sections/Problem';
 import { HowItWorks } from '../sections/HowItWorks';
+import { IntentScoring } from '../sections/IntentScoring';
 import { LivePreview } from '../sections/LivePreview';
+import { SubredditsTable } from '../sections/SubredditsTable';
 import { Pricing } from '../sections/Pricing';
 import { Faq } from '../sections/FAQ';
 import { FinalCta } from '../sections/FinalCTA';
@@ -56,8 +58,14 @@ export function LandingPage({ user, onStartMonitoring, onNavigateToProfile, onLo
       {/* 4. How It Works Section */}
       <HowItWorks />
 
+      {/* 4.5 AI Intent Scoring Engine */}
+      <IntentScoring />
+
       {/* 5. Live Product Preview Section */}
       <LivePreview onLaunch={onStartMonitoring} />
+
+      {/* 5.5 Monitored Subreddits Data Table */}
+      <SubredditsTable />
 
       {/* 6. Pricing Section */}
       <Pricing 

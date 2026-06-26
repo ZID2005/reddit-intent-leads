@@ -7,6 +7,7 @@ import { AnalyticsCards } from '../components/analytics/AnalyticsCards';
 import { AnalyticsCharts } from '../components/analytics/AnalyticsCharts';
 import { TopSubredditsTable } from '../components/analytics/TopSubredditsTable';
 import { SchedulerStatusCard } from '../components/analytics/SchedulerStatusCard';
+import { ExtraAnalyticsCharts } from '../components/analytics/ExtraAnalyticsCharts';
 import { LoadingState, ErrorState } from '../components/EmptyStates';
 
 interface AnalyticsPageProps {
@@ -101,6 +102,17 @@ export function AnalyticsPage({ leads, loading, error, retryFetch }: AnalyticsPa
       {/* Top Subreddits Table */}
       <div className="pt-2">
         <TopSubredditsTable leads={filteredLeads} />
+      </div>
+
+      {/* Extended Visual Insights */}
+      <div className="border-t border-white/5 pt-6 space-y-4">
+        <div className="flex items-center gap-2 text-lime mb-2">
+          <BarChart2 className="w-4 h-4" />
+          <h2 className="text-sm font-bold tracking-wider uppercase font-mono">
+            Extended Insights
+          </h2>
+        </div>
+        <ExtraAnalyticsCharts leads={filteredLeads} loading={loading} />
       </div>
       
     </div>

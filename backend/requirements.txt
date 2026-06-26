@@ -19,4 +19,5 @@ python-dotenv==1.2.2
 apscheduler==3.10.4       # Background job scheduling with interval triggers
 fastapi>=0.115.0          # HTTP API for scheduler status / run-now / config
 uvicorn==0.34.0           # ASGI server for FastAPI
+slowapi>=0.1.9            # Rate limiting for FastAPI endpoints
 

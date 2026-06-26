@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { User } from '@supabase/supabase-js';
 import { Navbar } from '../sections/Navbar';
+import { PreferencesForm } from '../components/PreferencesForm';
 import useEmblaCarousel from 'embla-carousel-react';
 import { cn } from '../lib/utils';
 import { 
@@ -288,44 +289,38 @@ export function ProfilePage({ user, onLogout }: ProfilePageProps) {
     hidden: {},
     visible: {
       transition: {
-        staggerChildren: 0.12,
+        staggerChildren: 0.05,
       },
     },
   };
 
   const fadeUp = {
-    hidden: { opacity: 0, y: 40 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const } },
+    hidden: { opacity: 0, y: 15 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as const } },
   };
 
   const listVariants = {
     hidden: {},
     visible: {
       transition: {
-        staggerChildren: 0.06,
+        staggerChildren: 0.04,
       },
     },
   };
 
   const rowVariants = {
-    hidden: { opacity: 0, x: -10 },
-    visible: { opacity: 1, x: 0, transition: { duration: 0.3 } },
+    hidden: { opacity: 0, x: -6 },
+    visible: { opacity: 1, x: 0, transition: { duration: 0.2 } },
   };
 
   const scaleInVariants = {
-    hidden: { opacity: 0, scale: 0.97 },
-    visible: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: 'easeOut' as const } },
+    hidden: { opacity: 0, scale: 0.98 },
+    visible: { opacity: 1, scale: 1, transition: { duration: 0.25, ease: 'easeOut' as const } },
   };
 
   return (
     <div className="min-h-screen bg-[#070708] text-white flex flex-col font-sans select-none relative overflow-x-hidden">
       
-      {/* Scroll Progress Indicator */}
-      <motion.div
-        style={{ scaleX, transformOrigin: 'left' }}
-        className="fixed top-[60px] left-0 right-0 h-[2px] bg-gradient-to-r from-lime/60 via-lime to-lime/60 z-50 pointer-events-none"
-      />
-
       {/* Page Background */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <motion.div
@@ -383,11 +378,11 @@ export function ProfilePage({ user, onLogout }: ProfilePageProps) {
             onClick={onLogout}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
-            className="btn-liquid-glass-danger flex items-center gap-2 px-5 py-2.5 rounded-full text-red-400 font-mono text-xs uppercase tracking-wider outline-none cursor-pointer"
+            className="btn-liquid-glass-danger flex items-center gap-2 px-5 py-2.5 rounded-full text-red-400/80 font-mono text-xs uppercase tracking-wider outline-none cursor-pointer"
           >
             {/* Specular glass reflection crescent */}
             <div className="absolute top-0.5 left-2.5 right-2.5 h-[35%] bg-gradient-to-b from-white/20 to-transparent rounded-t-full pointer-events-none z-10" />
-            <LogOut className="w-3.5 h-3.5 text-red-400/90 relative z-10" />
+            <LogOut className="w-3.5 h-3.5 relative z-10" />
             <span className="relative z-10">Log Out</span>
           </motion.button>
         </div>
@@ -408,11 +403,6 @@ export function ProfilePage({ user, onLogout }: ProfilePageProps) {
                   {firstInitial}
                 </div>
               </div>
-              {/* Pulsing ring behind avatar */}
-              <div 
-                className="absolute inset-0 rounded-full border border-lime/20 animate-ping pointer-events-none" 
-                style={{ animationDuration: '3s', animationIterationCount: 'infinite', opacity: 0.4 }}
-              />
             </div>
 
             {/* Details Column */}
@@ -437,11 +427,7 @@ export function ProfilePage({ user, onLogout }: ProfilePageProps) {
                   </div>
                 ) : (
                   <div className="inline-flex items-center gap-1.5 bg-lime/10 border border-lime/25 rounded-full px-3 py-1.5">
-                    <motion.span 
-                      animate={{ scale: [1, 1.3, 1], opacity: [1, 0.4, 1] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                      className="w-1.5 h-1.5 rounded-full bg-lime"
-                    />
+                    <span className="w-1.5 h-1.5 rounded-full bg-lime" />
                     <span className="font-mono text-xs text-lime">PRO PLAN</span>
                   </div>
                 )}
@@ -702,6 +688,28 @@ export function ProfilePage({ user, onLogout }: ProfilePageProps) {
               </div>
             </div>
           )}
+        </motion.div>
+
+        {/* SECTION E — ACCOUNT PREFERENCES */}
+        <motion.div
+          variants={scaleInVariants}
+          className="w-full mt-6 bg-white/[0.03] border border-white/[0.07] backdrop-blur-xl rounded-3xl p-8 overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        >
+          {/* Decorative top lime line */}
+          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-lime/30 to-transparent pointer-events-none" />
+          
+          <div className="flex items-center gap-3 mb-6">
+            <h3 className="font-display text-xl font-semibold text-white">
+              Application Preferences
+            </h3>
+            <span className="font-mono text-xs bg-white/5 border border-white/8 rounded-full px-3 py-1 text-white/35">
+              Global Settings
+            </span>
+          </div>
+
+          <div className="max-w-xl">
+            <PreferencesForm />
+          </div>
         </motion.div>
 
       </motion.div>

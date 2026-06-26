@@ -62,6 +62,7 @@ class LeadDatabase:
             "processed_at",
             "lead_summary",
             "qualification_reason",
+            "notes",
         }
     )
 

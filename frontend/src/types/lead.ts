@@ -24,6 +24,8 @@ export interface Lead {
   lead_summary: string;
   created_at: string;
   status: 'new' | 'saved' | 'contacted' | 'closed';
+  contacted_at?: string | null;
+  notes?: string;
   // Extended fields from Supabase posts table
   recommended_action?: RecommendedAction;
   keywords?: string[];

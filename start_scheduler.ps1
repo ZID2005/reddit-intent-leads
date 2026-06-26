@@ -19,4 +19,4 @@ if (Test-Path "venv\Scripts\Activate.ps1") {
 }
 
 # Run scheduler from project root so Python resolves backend.* imports correctly
-python -m backend.scheduler
+python -m backend.app_entry

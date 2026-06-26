@@ -33,8 +33,11 @@ from typing import Any
 import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 from supabase import create_client, Client
 
@@ -51,6 +54,7 @@ from backend.config import (
     SCHEDULER_INTERVAL_HOURS,
     SCHEDULER_VALID_INTERVALS,
     SCHEDULER_API_PORT,
+    ALLOWED_ORIGINS,
 )
 
 # ---------------------------------------------------------------------------
@@ -540,17 +544,48 @@ async def lifespan(app: FastAPI):
     logger.info("Scheduler stopped.")
 
 
+def get_client_ip(request: Request) -> str:
+    x_forwarded_for = request.headers.get("x-forwarded-for")
+    if x_forwarded_for:
+        return x_forwarded_for.split(",")[0].strip()
+    x_real_ip = request.headers.get("x-real-ip")
+    if x_real_ip:
+        return x_real_ip.strip()
+    return request.client.host if request.client else "127.0.0.1"
+
+limiter = Limiter(key_func=get_client_ip)
+
 app = FastAPI(
     title="SignalRadar Scheduler API",
     version="1.0.0",
     description="Controls the automated RSS → Groq → Supabase pipeline",
     lifespan=lifespan,
 )
+app.state.limiter = limiter
 
-# Allow the Vite dev server to call us
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    client_ip = get_client_ip(request)
+    path = request.url.path
+    logger.warning(
+        "Rate limit exceeded: client_ip=%s path=%s limit=%s",
+        client_ip,
+        path,
+        exc.detail
+    )
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error": "Too Many Requests",
+            "detail": f"Rate limit exceeded: {exc.detail}",
+            "path": path
+        }
+    )
+
+# Allow origins defined in configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -661,6 +696,8 @@ def health() -> dict[str, str]:
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
+    from backend.logging_config import setup_logging
+    setup_logging()
     # Support: python backend/scheduler.py   (direct)
     # Support: python -m backend.scheduler   (module)
     uvicorn.run(

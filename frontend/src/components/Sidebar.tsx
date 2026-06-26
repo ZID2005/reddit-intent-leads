@@ -1,12 +1,12 @@
 import React from 'react';
-import { Star, Phone, ListFilter, Cpu, BarChart3 } from 'lucide-react';
+import { Star, Phone, ListFilter, Cpu, BarChart3, Kanban } from 'lucide-react';
 import { FilterPanel } from './filters/FilterPanel';
 import { FilterState, SortKey } from '../hooks/useFilters';
 import { PriorityType, CategoryType } from '../types/lead';
 
 interface SidebarProps {
-  currentView: 'all' | 'saved' | 'contacted' | 'analytics';
-  setView: (view: 'all' | 'saved' | 'contacted' | 'analytics') => void;
+  currentView: 'all' | 'saved' | 'contacted' | 'analytics' | 'pipeline';
+  setView: (view: 'all' | 'saved' | 'contacted' | 'analytics' | 'pipeline') => void;
   totalLeads: number;
   savedCount: number;
   contactedCount: number;
@@ -41,6 +41,7 @@ export function Sidebar({
 
   const views = [
     { id: 'all'       as const, label: 'All Leads',   count: totalLeads,    icon: <ListFilter className="w-4 h-4" /> },
+    { id: 'pipeline'  as const, label: 'Pipeline',    count: totalLeads,    icon: <Kanban     className="w-4 h-4" /> },
     { id: 'saved'     as const, label: 'Saved',        count: savedCount,    icon: <Star      className="w-4 h-4" /> },
     { id: 'contacted' as const, label: 'Contacted',    count: contactedCount, icon: <Phone    className="w-4 h-4" /> },
     { id: 'analytics' as const, label: 'Analytics',    count: totalLeads,    icon: <BarChart3 className="w-4 h-4" /> },

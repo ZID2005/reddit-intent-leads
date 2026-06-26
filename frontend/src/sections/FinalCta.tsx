@@ -3,6 +3,84 @@ import { motion, Variants } from 'framer-motion';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 
+const STAGGER = 0.035;
+
+const TextRoll: React.FC<{
+  children: string;
+  className?: string;
+  center?: boolean;
+  charIndexOffset: number;
+  totalLength: number;
+}> = ({ children, className, center = false, charIndexOffset, totalLength }) => {
+  return (
+    <span
+      className={`relative inline-block overflow-hidden ${className || ""}`}
+      style={{
+        lineHeight: 0.85,
+      }}
+    >
+      <span className="block">
+        {children.split("").map((l, i) => {
+          const globalIdx = i + charIndexOffset;
+          const delay = center
+            ? STAGGER * Math.abs(globalIdx - (totalLength - 1) / 2)
+            : STAGGER * globalIdx;
+
+          return (
+            <motion.span
+              variants={{
+                initial: {
+                  y: 0,
+                },
+                hovered: {
+                  y: "-100%",
+                },
+              }}
+              transition={{
+                ease: "easeInOut",
+                delay,
+              }}
+              className="inline-block"
+              key={i}
+            >
+              {l}
+            </motion.span>
+          );
+        })}
+      </span>
+      <span className="absolute inset-0 block">
+        {children.split("").map((l, i) => {
+          const globalIdx = i + charIndexOffset;
+          const delay = center
+            ? STAGGER * Math.abs(globalIdx - (totalLength - 1) / 2)
+            : STAGGER * globalIdx;
+
+          return (
+            <motion.span
+              variants={{
+                initial: {
+                  y: "100%",
+                },
+                hovered: {
+                  y: 0,
+                },
+              }}
+              transition={{
+                ease: "easeInOut",
+                delay,
+              }}
+              className="inline-block"
+              key={i}
+            >
+              {l}
+            </motion.span>
+          );
+        })}
+      </span>
+    </span>
+  );
+};
+
 interface FinalCtaProps {
   onStart: () => void;
 }
@@ -99,10 +177,30 @@ export function FinalCta({ onStart }: FinalCtaProps) {
           {/* Headline - Clash Display */}
           <motion.h2 
             variants={itemVariants}
-            className="text-3xl md:text-[56px] font-bold font-display tracking-tight leading-[1.08] text-white select-none max-w-xl mx-auto"
+            whileHover="hovered"
+            className="text-3xl md:text-[56px] font-bold font-display tracking-tight leading-[1.08] text-white select-none max-w-xl mx-auto flex flex-wrap justify-center cursor-pointer py-1"
             style={{ letterSpacing: '-0.02em' }}
           >
-            Start finding buyers while they're still deciding.
+            {(() => {
+              const headline = "Start finding buyers while they're still deciding.";
+              const words = headline.split(" ");
+              let accumulatedLength = 0;
+              return words.map((word, idx) => {
+                const offset = accumulatedLength;
+                accumulatedLength += word.length + 1;
+                return (
+                  <TextRoll 
+                    key={idx} 
+                    charIndexOffset={offset}
+                    totalLength={headline.length}
+                    center
+                    className="mr-[0.25em] last:mr-0"
+                  >
+                    {word}
+                  </TextRoll>
+                );
+              });
+            })()}
           </motion.h2>
 
           {/* Subtext */}

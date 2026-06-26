@@ -24,6 +24,14 @@ export function normaliseRow(lead: any): Lead {
     category = 'research';
   }
 
+  let statusVal = lead.status || 'new';
+  let contacted_at: string | null = null;
+  if (statusVal.startsWith('contacted:')) {
+    const parts = statusVal.split(':');
+    statusVal = 'contacted';
+    contacted_at = parts[1] || null;
+  }
+
   return {
     post_id: lead.post_id,
     title: lead.title || '',
@@ -41,7 +49,9 @@ export function normaliseRow(lead: any): Lead {
     keywords: Array.isArray(lead.keywords) ? lead.keywords : [],
     created_at,
     processed_at: lead.processed_at || '',
-    status: lead.status || 'new',
+    status: statusVal as 'new' | 'saved' | 'contacted' | 'closed',
+    contacted_at,
+    notes: lead.notes || '',
   };
 }
 
@@ -52,7 +62,7 @@ export function useLeads() {
   const [error, setError] = useState<string | null>(null);
 
   // View tabs
-  const [currentView, setCurrentView] = useState<'all' | 'saved' | 'contacted' | 'analytics'>('all');
+  const [currentView, setCurrentView] = useState<'all' | 'saved' | 'contacted' | 'analytics' | 'pipeline'>('all');
 
   // Tab counts
   const [totalLeadsCount, setTotalLeadsCount] = useState<number>(0);
@@ -68,7 +78,7 @@ export function useLeads() {
       const rows = data || [];
       setTotalLeadsCount(rows.length);
       setSavedLeadsCount(rows.filter(r => r.status === 'saved').length);
-      setContactedLeadsCount(rows.filter(r => r.status === 'contacted').length);
+      setContactedLeadsCount(rows.filter(r => String(r.status || '').startsWith('contacted')).length);
     } catch (e) {
       console.error('Failed to fetch counts:', e);
     }
@@ -85,7 +95,7 @@ export function useLeads() {
         .order('created_at', { ascending: false });
 
       if (currentView === 'saved')     query = query.eq('status', 'saved');
-      if (currentView === 'contacted') query = query.eq('status', 'contacted');
+      if (currentView === 'contacted') query = query.like('status', 'contacted%');
 
       const { data, error: dbError } = await query;
       if (dbError) throw dbError;
@@ -122,11 +132,11 @@ export function useLeads() {
         fetchCounts();
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'posts' }, payload => {
-        const u = payload.new;
+        const u = normaliseRow(payload.new);
         setAllLeads(prev => {
           if (currentView === 'saved'     && u.status !== 'saved')     return prev.filter(l => l.post_id !== u.post_id);
           if (currentView === 'contacted' && u.status !== 'contacted') return prev.filter(l => l.post_id !== u.post_id);
-          return prev.map(l => l.post_id === u.post_id ? { ...l, status: u.status } : l);
+          return prev.map(l => l.post_id === u.post_id ? u : l);
         });
         fetchCounts();
       })
@@ -155,11 +165,18 @@ export function useLeads() {
   const toggleContactedLead = useCallback(async (postId: string) => {
     const lead = allLeads.find(l => l.post_id === postId);
     if (!lead) return;
-    const nextStatus = lead.status === 'contacted' ? 'new' : 'contacted';
+    const nextStatus = lead.status === 'contacted' ? 'new' : `contacted:${new Date().toISOString()}`;
 
     setAllLeads(prev => {
-      if (currentView === 'contacted' && nextStatus !== 'contacted') return prev.filter(l => l.post_id !== postId);
-      return prev.map(l => l.post_id === postId ? { ...l, status: nextStatus } : l);
+      if (currentView === 'contacted' && nextStatus === 'new') return prev.filter(l => l.post_id !== postId);
+      return prev.map(l => {
+        if (l.post_id === postId) {
+          const statusVal = nextStatus.startsWith('contacted') ? 'contacted' : 'new';
+          const contacted_at = nextStatus.startsWith('contacted') ? nextStatus.split(':')[1] : null;
+          return { ...l, status: statusVal as any, contacted_at };
+        }
+        return l;
+      });
     });
 
     try {
@@ -167,6 +184,54 @@ export function useLeads() {
       fetchCounts();
     } catch { fetchLeads(); }
   }, [allLeads, currentView, fetchCounts, fetchLeads]);
+
+  const updateLeadNotes = useCallback(async (postId: string, notes: string) => {
+    setAllLeads(prev =>
+      prev.map(l => (l.post_id === postId ? { ...l, notes } : l))
+    );
+
+    try {
+      const { error: dbError } = await supabase
+        .from('posts')
+        .update({ notes })
+        .eq('post_id', postId);
+      if (dbError) throw dbError;
+      await fetchCounts();
+    } catch (e) {
+      console.error('Failed to save lead notes:', e);
+      fetchLeads();
+      throw e;
+    }
+  }, [fetchCounts, fetchLeads]);
+
+  const updateLeadStatus = useCallback(async (postId: string, nextStatus: 'new' | 'saved' | 'contacted') => {
+    const statusVal = nextStatus === 'contacted' ? `contacted:${new Date().toISOString()}` : nextStatus;
+
+    setAllLeads(prev => {
+      if (currentView === 'saved' && nextStatus !== 'saved') return prev.filter(l => l.post_id !== postId);
+      if (currentView === 'contacted' && nextStatus !== 'contacted') return prev.filter(l => l.post_id !== postId);
+
+      return prev.map(l => {
+        if (l.post_id === postId) {
+          const contacted_at = nextStatus === 'contacted' ? new Date().toISOString() : null;
+          return { ...l, status: nextStatus, contacted_at };
+        }
+        return l;
+      });
+    });
+
+    try {
+      const { error: dbError } = await supabase
+        .from('posts')
+        .update({ status: statusVal })
+        .eq('post_id', postId);
+      if (dbError) throw dbError;
+      await fetchCounts();
+    } catch (e) {
+      console.error('Failed to update lead status:', e);
+      fetchLeads();
+    }
+  }, [currentView, fetchCounts, fetchLeads]);
 
   return {
     allLeads,           // raw, unfiltered — passed to useFilters
@@ -180,5 +245,7 @@ export function useLeads() {
     contactedLeadsCount,
     toggleSaveLead,
     toggleContactedLead,
+    updateLeadNotes,
+    updateLeadStatus,
   };
 }

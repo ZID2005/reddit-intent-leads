@@ -8,7 +8,8 @@ import {
   Star, 
   PhoneCall, 
   Target, 
-  ShieldCheck 
+  ShieldCheck,
+  Calendar
 } from 'lucide-react';
 import { Lead } from '../../types/lead';
 
@@ -31,10 +32,14 @@ export function AnalyticsCards({ leads }: AnalyticsCardsProps) {
     ? Math.round(leadsWithIntent.reduce((sum, l) => sum + l.intent_score, 0) / leadsWithIntent.length) 
     : 0;
     
-  const leadsWithConfidence = leads.filter(l => l.confidence !== null && l.confidence !== undefined && l.confidence > 0);
-  const avgConfidence = leadsWithConfidence.length > 0 
-    ? Math.round(leadsWithConfidence.reduce((sum, l) => sum + (l.confidence * 100), 0) / leadsWithConfidence.length) 
-    : 0;
+  const leadsCollectedToday = leads.filter(l => {
+    const dateVal = l.created_at || l.processed_at;
+    if (!dateVal) return false;
+    const leadDate = new Date(dateVal);
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    return leadDate >= startOfToday;
+  }).length;
 
   const cardData = [
     {
@@ -89,13 +94,11 @@ export function AnalyticsCards({ leads }: AnalyticsCardsProps) {
       radial: true,
     },
     {
-      title: 'Avg Confidence',
-      value: avgConfidence,
-      isPercentage: true,
-      icon: <ShieldCheck className="w-4 h-4 text-emerald-400" />,
+      title: 'Collected Today',
+      value: leadsCollectedToday,
+      icon: <Calendar className="w-4 h-4 text-emerald-400" />,
       color: 'emerald',
       glowColor: 'rgba(52, 211, 153, 0.15)',
-      radial: true,
     },
   ];
 

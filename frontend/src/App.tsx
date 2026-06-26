@@ -7,7 +7,7 @@ import { supabase } from './lib/supabase';
 import { User } from '@supabase/supabase-js';
 
 function App() {
-  const [view, setView] = useState<'landing' | 'dashboard' | 'profile'>('landing');
+  const [view, setView] = useState<'landing' | 'dashboard' | 'analytics' | 'saved' | 'contacts' | 'profile' | 'pipeline'>('landing');
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -50,6 +50,14 @@ function App() {
       } else {
         if (location.pathname === '/dashboard') {
           setView('dashboard');
+        } else if (location.pathname === '/pipeline') {
+          setView('pipeline');
+        } else if (location.pathname === '/analytics') {
+          setView('analytics');
+        } else if (location.pathname === '/saved') {
+          setView('saved');
+        } else if (location.pathname === '/contacts') {
+          setView('contacts');
         } else if (location.pathname === '/profile') {
           setView('profile');
         } else if (location.pathname === '/') {
@@ -85,11 +93,16 @@ function App() {
           onLogout={handleLogout}
           authLoading={authLoading}
         />
-      ) : view === 'dashboard' ? (
-        <DashboardPage onBackToMarketing={() => {
-          setView('landing');
-          navigate('/');
-        }} />
+      ) : ['dashboard', 'analytics', 'saved', 'contacts', 'pipeline'].includes(view) ? (
+        <DashboardPage 
+          user={user}
+          onLogout={handleLogout}
+          currentView={view as 'dashboard' | 'analytics' | 'saved' | 'contacts' | 'pipeline'} 
+          onBackToMarketing={() => {
+            setView('landing');
+            navigate('/');
+          }} 
+        />
       ) : (
         <ProfilePage 
           user={user!}

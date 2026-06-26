@@ -8,6 +8,7 @@ interface UseLeadDetailReturn {
   error: string | null;
   fetchDetail: (postId: string) => Promise<void>;
   clearDetail: () => void;
+  updateLocalNotes: (notes: string) => void;
 }
 
 /**
@@ -73,6 +74,7 @@ export function useLeadDetail(): UseLeadDetailReturn {
         lead_summary: data.lead_summary ?? '',
         processed_at: data.processed_at ?? data.created_at ?? '',
         status: data.status ?? 'new',
+        notes: data.notes ?? '',
       });
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load lead details.');
@@ -87,5 +89,9 @@ export function useLeadDetail(): UseLeadDetailReturn {
     setError(null);
   }, []);
 
-  return { detail, loading, error, fetchDetail, clearDetail };
+  const updateLocalNotes = useCallback((notes: string) => {
+    setDetail(prev => prev ? { ...prev, notes } : null);
+  }, []);
+
+  return { detail, loading, error, fetchDetail, clearDetail, updateLocalNotes };
 }
