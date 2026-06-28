@@ -18,6 +18,7 @@ class TestRSSCollector(unittest.TestCase):
         import backend.rss_collector
         backend.rss_collector._ua_index = 0
         backend.rss_collector._last_request_time = 0.0
+        backend.rss_collector.USE_COMBINED_RSS = False
 
     def test_ua_rotation(self):
         # We call _get_next_ua multiple times and verify rotation order

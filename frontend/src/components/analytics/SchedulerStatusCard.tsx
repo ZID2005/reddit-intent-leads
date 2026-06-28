@@ -2,14 +2,7 @@
  * SchedulerStatusCard.tsx
  * -----------------------
  * Analytics page card showing automated pipeline status.
- *
- * Features:
- * - Live status indicator (idle / running / error / offline)
- * - Last Run & Next Run timestamps with relative time
- * - Per-run metrics: inserted / fetched / duplicates / failures
- * - Interval selector: 1h · 3h · 6h · 12h · 24h
- * - "Run Now" button with loading spinner
- * - Recent run history timeline
+ * Visual redesign only — all data logic, hooks, and state unchanged.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -30,15 +23,28 @@ import {
 } from 'lucide-react';
 import { useScheduler, SchedulerRunRecord } from '../../hooks/useScheduler';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const GODBER = "'Godber', sans-serif";
+const NOHEMI = "'Nohemi', sans-serif";
+const MONO = NOHEMI;
+const LIME = '#C6FF34';
+
+// ─── Liquid glass ──────────────────────────────────────────────────────────────
+const glass: React.CSSProperties = {
+  background:           'rgba(255,255,255,0.035)',
+  border:               '1px solid rgba(255,255,255,0.08)',
+  backdropFilter:       'blur(24px) saturate(180%)',
+  WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+  borderRadius:         20,
+  boxShadow:            '0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)',
+};
+
+// ─── Helpers (unchanged logic) ─────────────────────────────────────────────────
 function relativeTime(isoStr: string | null): string {
   if (!isoStr) return '—';
   const diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
-  if (diff < 5) return 'just now';
-  if (diff < 60) return `${Math.floor(diff)}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 5)     return 'just now';
+  if (diff < 60)    return `${Math.floor(diff)}s ago`;
+  if (diff < 3600)  return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
@@ -47,303 +53,201 @@ function countdown(isoStr: string | null): string {
   if (!isoStr) return '—';
   const diff = (new Date(isoStr).getTime() - Date.now()) / 1000;
   if (diff <= 0) return 'soon';
-  if (diff < 60) return `${Math.floor(diff)}s`;
+  if (diff < 60)   return `${Math.floor(diff)}s`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  const h = Math.floor(diff / 3600);
-  const m = Math.floor((diff % 3600) / 60);
+  const h = Math.floor(diff / 3600), m = Math.floor((diff % 3600) / 60);
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
 function formatTime(isoStr: string | null): string {
   if (!isoStr) return '—';
-  return new Date(isoStr).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return new Date(isoStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-// ---------------------------------------------------------------------------
-// Status config
-// ---------------------------------------------------------------------------
+// ─── Status config ─────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
   idle: {
-    label: 'Idle',
-    dotColor: 'bg-lime',
-    glow: 'shadow-[0_0_8px_#C6FF34]',
-    textColor: 'text-lime',
-    icon: <CheckCircle2 className="w-3.5 h-3.5" />,
-    pulse: false,
+    label: 'Idle', dotColor: LIME, textColor: LIME,
+    icon: <CheckCircle2 className="w-3.5 h-3.5" />, pulse: false,
   },
   running: {
-    label: 'Running',
-    dotColor: 'bg-amber-400',
-    glow: 'shadow-[0_0_8px_#fbbf24]',
-    textColor: 'text-amber-400',
-    icon: <RefreshCw className="w-3.5 h-3.5 animate-spin" />,
-    pulse: true,
+    label: 'Running', dotColor: '#fbbf24', textColor: '#fbbf24',
+    icon: <RefreshCw className="w-3.5 h-3.5 animate-spin" />, pulse: true,
   },
   error: {
-    label: 'Error',
-    dotColor: 'bg-red-500',
-    glow: 'shadow-[0_0_8px_#ef4444]',
-    textColor: 'text-red-400',
-    icon: <XCircle className="w-3.5 h-3.5" />,
-    pulse: false,
+    label: 'Error', dotColor: '#ef4444', textColor: '#f87171',
+    icon: <XCircle className="w-3.5 h-3.5" />, pulse: false,
   },
   offline: {
-    label: 'Offline',
-    dotColor: 'bg-gray-500',
-    glow: '',
-    textColor: 'text-gray-400',
-    icon: <WifiOff className="w-3.5 h-3.5" />,
-    pulse: false,
+    label: 'Offline', dotColor: '#6b7280', textColor: '#9ca3af',
+    icon: <WifiOff className="w-3.5 h-3.5" />, pulse: false,
   },
 } as const;
 
 const INTERVALS = [1, 3, 6, 12, 24] as const;
 
-// ---------------------------------------------------------------------------
-// Run History item
-// ---------------------------------------------------------------------------
+// ─── Run history item ──────────────────────────────────────────────────────────
 function HistoryRow({ run }: { run: SchedulerRunRecord }) {
   const isSuccess = run.status === 'success' || run.status === 'partial';
-  const isFailed = run.status === 'failed';
+  const isFailed  = run.status === 'failed';
   const isRunning = run.status === 'running';
 
   return (
-    <div className="flex items-center gap-3 py-2 border-b border-white/5 last:border-0">
-      <div className="flex-shrink-0">
-        {isRunning ? (
-          <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin" />
-        ) : isFailed ? (
-          <XCircle className="w-3.5 h-3.5 text-red-400" />
-        ) : run.status === 'partial' ? (
-          <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-        ) : (
-          <CheckCircle2 className="w-3.5 h-3.5 text-lime" />
-        )}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <div style={{ flexShrink: 0 }}>
+        {isRunning
+          ? <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ color: '#fbbf24' }} />
+          : isFailed
+          ? <XCircle className="w-3.5 h-3.5" style={{ color: '#f87171' }} />
+          : run.status === 'partial'
+          ? <AlertTriangle className="w-3.5 h-3.5" style={{ color: '#fbbf24' }} />
+          : <CheckCircle2 className="w-3.5 h-3.5" style={{ color: LIME }} />
+        }
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono text-white/70">
-            {formatTime(run.started_at)}
-          </span>
-          <span
-            className={`text-[9px] font-mono px-1.5 py-0.5 rounded-full ${
-              isRunning
-                ? 'text-amber-400 bg-amber-400/10'
-                : isFailed
-                ? 'text-red-400 bg-red-400/10'
-                : run.status === 'partial'
-                ? 'text-amber-300 bg-amber-300/10'
-                : 'text-lime bg-lime/10'
-            }`}
-          >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>{formatTime(run.started_at)}</span>
+          <span style={{
+            fontFamily: MONO, fontSize: 9, padding: '1px 6px', borderRadius: 99,
+            color: isRunning ? '#fbbf24' : isFailed ? '#f87171' : run.status === 'partial' ? '#fcd34d' : LIME,
+            background: isRunning ? 'rgba(251,191,36,0.1)' : isFailed ? 'rgba(239,68,68,0.1)' : 'rgba(198,255,52,0.08)',
+          }}>
             {run.status}
           </span>
         </div>
-        <div className="flex items-center gap-3 mt-0.5">
-          <span className="text-[9px] text-mutedText">
-            +{run.inserted} leads
-          </span>
-          <span className="text-[9px] text-mutedText">
-            {run.fetched} fetched
-          </span>
-          {run.failures > 0 && (
-            <span className="text-[9px] text-red-400">
-              {run.failures} err
-            </span>
-          )}
+        <div style={{ display: 'flex', gap: 12, marginTop: 2 }}>
+          <span style={{ fontFamily: MONO, fontSize: 9, color: 'rgba(255,255,255,0.35)' }}>+{run.inserted} leads</span>
+          <span style={{ fontFamily: MONO, fontSize: 9, color: 'rgba(255,255,255,0.35)' }}>{run.fetched} fetched</span>
+          {run.failures > 0 && <span style={{ fontFamily: MONO, fontSize: 9, color: '#f87171' }}>{run.failures} err</span>}
         </div>
       </div>
-      <span className="text-[9px] font-mono text-mutedText flex-shrink-0">
-        {relativeTime(run.started_at)}
-      </span>
+      <span style={{ fontFamily: MONO, fontSize: 9, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>{relativeTime(run.started_at)}</span>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Main card
-// ---------------------------------------------------------------------------
+// ─── Main card ─────────────────────────────────────────────────────────────────
 export function SchedulerStatusCard() {
   const {
-    status,
-    intervalHours,
-    lastRunAt,
-    nextRunAt,
-    lastRunInserted,
-    lastRunFetched,
-    lastRunScored,
-    lastRunDuplicates,
-    lastRunFailures,
-    lastError,
-    history,
-    apiOnline,
-    triggerLoading,
-    triggerError,
-    configLoading,
-    triggerRun,
-    changeInterval,
+    status, intervalHours, lastRunAt, nextRunAt,
+    lastRunInserted, lastRunFetched, lastRunScored, lastRunDuplicates, lastRunFailures,
+    lastError, history, apiOnline, triggerLoading, triggerError, configLoading,
+    triggerRun, changeInterval,
   } = useScheduler();
 
-  const [showHistory, setShowHistory] = useState(false);
+  const [showHistory,    setShowHistory]    = useState(false);
   const [nextRunDisplay, setNextRunDisplay] = useState('—');
   const [lastRunDisplay, setLastRunDisplay] = useState('—');
 
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.offline;
 
-  // Live countdown ticker
   useEffect(() => {
-    const tick = () => {
-      setNextRunDisplay(countdown(nextRunAt));
-      setLastRunDisplay(relativeTime(lastRunAt));
-    };
+    const tick = () => { setNextRunDisplay(countdown(nextRunAt)); setLastRunDisplay(relativeTime(lastRunAt)); };
     tick();
     const id = setInterval(tick, 5000);
     return () => clearInterval(id);
   }, [nextRunAt, lastRunAt]);
 
+  // Stat mini-block
+  const MiniStat = ({ icon, label, value, subValue, accent }: { icon: React.ReactNode; label: string; value: React.ReactNode; subValue?: string; accent?: boolean }) => (
+    <div style={{
+      background: 'rgba(255,255,255,0.03)',
+      border: '1px solid rgba(255,255,255,0.07)',
+      borderRadius: 12, padding: '12px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6, color: 'rgba(255,255,255,0.35)' }}>
+        {icon}
+        <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)' }}>{label}</span>
+      </div>
+      <div style={{ fontFamily: MONO, fontSize: 14, fontWeight: 500, color: accent ? LIME : '#fff', lineHeight: 1 }}>{value}</div>
+      {subValue && <div style={{ fontFamily: MONO, fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 3 }}>{subValue}</div>}
+    </div>
+  );
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="glass-panel rounded-2xl border border-white/5 overflow-hidden"
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      style={{ ...glass, overflow: 'hidden', borderLeft: `2px solid ${LIME}` }}
     >
-      {/* Top accent bar — color matches status */}
-      <div
-        className={`h-[2px] w-full ${
-          status === 'running'
-            ? 'bg-amber-400'
-            : status === 'error'
-            ? 'bg-red-500'
-            : status === 'offline'
-            ? 'bg-gray-600'
-            : 'bg-lime'
-        }`}
-      />
+      {/* Status-colored top accent bar */}
+      <div style={{
+        height: 2, width: '100%',
+        background: status === 'running' ? '#fbbf24' : status === 'error' ? '#ef4444' : status === 'offline' ? '#6b7280' : LIME,
+      }} />
 
-      <div className="p-5">
-        {/* ── Header row ──────────────────────────────────────────────── */}
-        <div className="flex items-start justify-between mb-5">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-lime/10 border border-lime/20">
-                <Zap className="w-3.5 h-3.5 text-lime" />
+      <div style={{ padding: '20px' }}>
+        {/* ── Header row ────────────────────────────────────────────── */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <div style={{ padding: '6px', background: 'rgba(198,255,52,0.08)', border: '1px solid rgba(198,255,52,0.18)', borderRadius: 8 }}>
+                <Zap className="w-3.5 h-3.5" style={{ color: LIME }} />
               </div>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-mutedText/80">
+              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(198,255,52,0.6)' }}>
                 Auto-Refresh Pipeline
               </span>
             </div>
-            <h2 className="text-sm font-bold text-white tracking-wide">
+            <h2 style={{ fontFamily: GODBER, fontWeight: 700, fontSize: '1rem', color: '#fff', letterSpacing: '-0.01em' }}>
               Scheduler Status
             </h2>
           </div>
 
           {/* Status badge */}
-          <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/5 ${cfg.textColor}`}
-          >
-            <div
-              className={`w-1.5 h-1.5 rounded-full ${cfg.dotColor} ${cfg.glow} ${
-                cfg.pulse ? 'animate-pulse' : ''
-              }`}
-            />
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '6px 12px', borderRadius: 99,
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.07)',
+            color: cfg.textColor,
+          }}>
+            <div style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: cfg.dotColor,
+              boxShadow: `0 0 8px ${cfg.dotColor}`,
+              animation: cfg.pulse ? 'pulse 1.5s infinite' : 'none',
+            }} />
             {cfg.icon}
-            <span className="text-[10px] font-mono font-semibold uppercase tracking-widest">
+            <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               {cfg.label}
             </span>
           </div>
         </div>
 
-        {/* ── Metrics grid ────────────────────────────────────────────── */}
+        {/* ── Metrics grid ──────────────────────────────────────────── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-          {/* Last Run */}
-          <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3 space-y-1">
-            <div className="flex items-center gap-1.5 text-mutedText">
-              <Clock className="w-3 h-3" />
-              <span className="text-[9px] font-mono uppercase tracking-widest">
-                Last Run
-              </span>
-            </div>
-            <p className="text-sm font-bold font-mono text-white">
-              {lastRunDisplay}
-            </p>
-            {lastRunAt && (
-              <p className="text-[9px] text-mutedText font-mono">
-                {formatTime(lastRunAt)}
-              </p>
-            )}
-          </div>
-
-          {/* Next Run */}
-          <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3 space-y-1">
-            <div className="flex items-center gap-1.5 text-mutedText">
-              <RefreshCw className="w-3 h-3" />
-              <span className="text-[9px] font-mono uppercase tracking-widest">
-                Next Run
-              </span>
-            </div>
-            <p
-              className={`text-sm font-bold font-mono ${
-                apiOnline ? 'text-lime' : 'text-gray-400'
-              }`}
-            >
-              {apiOnline ? nextRunDisplay : '—'}
-            </p>
-            {nextRunAt && apiOnline && (
-              <p className="text-[9px] text-mutedText font-mono">
-                {formatTime(nextRunAt)}
-              </p>
-            )}
-          </div>
-
-          {/* New Leads */}
-          <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3 space-y-1">
-            <div className="flex items-center gap-1.5 text-mutedText">
-              <TrendingUp className="w-3 h-3" />
-              <span className="text-[9px] font-mono uppercase tracking-widest">
-                Last Added
-              </span>
-            </div>
-            <p className="text-sm font-bold font-mono text-white">
-              +{lastRunInserted}
-            </p>
-            <p className="text-[9px] text-mutedText font-mono">
-              {lastRunFetched} fetched · {lastRunDuplicates} dupes
-            </p>
-          </div>
-
-          {/* Failures */}
-          <div className="bg-white/[0.02] border border-white/5 rounded-xl p-3 space-y-1">
-            <div className="flex items-center gap-1.5 text-mutedText">
-              <AlertTriangle className="w-3 h-3" />
-              <span className="text-[9px] font-mono uppercase tracking-widest">
-                Failures
-              </span>
-            </div>
-            <p
-              className={`text-sm font-bold font-mono ${
-                lastRunFailures > 0 ? 'text-red-400' : 'text-white'
-              }`}
-            >
-              {lastRunFailures}
-            </p>
-            <p className="text-[9px] text-mutedText font-mono">
-              {lastRunScored} scored
-            </p>
-          </div>
+          <MiniStat
+            icon={<Clock className="w-3 h-3" />} label="Last Run"
+            value={lastRunDisplay}
+            subValue={lastRunAt ? formatTime(lastRunAt) : undefined}
+          />
+          <MiniStat
+            icon={<RefreshCw className="w-3 h-3" />} label="Next Run"
+            value={apiOnline ? nextRunDisplay : '—'}
+            subValue={nextRunAt && apiOnline ? formatTime(nextRunAt) : undefined}
+            accent={apiOnline}
+          />
+          <MiniStat
+            icon={<TrendingUp className="w-3 h-3" />} label="Last Added"
+            value={`+${lastRunInserted}`}
+            subValue={`${lastRunFetched} fetched · ${lastRunDuplicates} dupes`}
+          />
+          <MiniStat
+            icon={<AlertTriangle className="w-3 h-3" />} label="Failures"
+            value={<span style={{ color: lastRunFailures > 0 ? '#f87171' : '#fff' }}>{lastRunFailures}</span>}
+            subValue={`${lastRunScored} scored`}
+          />
         </div>
 
-        {/* ── Controls row ────────────────────────────────────────────── */}
+        {/* ── Controls row ──────────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           {/* Interval selector */}
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] font-mono uppercase tracking-widest text-mutedText">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)' }}>
               Interval:
             </span>
-            <div className="flex items-center gap-1 p-1 bg-white/[0.03] border border-white/5 rounded-lg">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 8 }}>
               {INTERVALS.map(h => {
                 const isActive = h === intervalHours;
                 return (
@@ -352,96 +256,106 @@ export function SchedulerStatusCard() {
                     id={`scheduler-interval-${h}h`}
                     onClick={() => changeInterval(h)}
                     disabled={configLoading || !apiOnline}
-                    className={`relative px-2.5 py-1 text-[9px] font-mono font-medium rounded-md transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
-                      isActive
-                        ? 'text-carbon-dark font-bold'
-                        : 'text-gray-400 hover:text-white'
-                    }`}
+                    style={{
+                      position: 'relative', padding: '4px 10px', borderRadius: 6,
+                      fontFamily: MONO, fontSize: 9, fontWeight: isActive ? 700 : 400,
+                      color: isActive ? '#0a0a0a' : 'rgba(255,255,255,0.45)',
+                      background: 'transparent', border: 'none', cursor: 'pointer',
+                      opacity: (configLoading || !apiOnline) ? 0.4 : 1,
+                    }}
                   >
                     {isActive && (
                       <motion.div
                         layoutId="activeInterval"
-                        className="absolute inset-0 bg-lime rounded-md z-0"
+                        style={{ position: 'absolute', inset: 0, background: LIME, borderRadius: 6, zIndex: 0 }}
                         transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                       />
                     )}
-                    <span className="relative z-10">{h}h</span>
+                    <span style={{ position: 'relative', zIndex: 1 }}>{h}h</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Spacer */}
-          <div className="flex-1" />
+          <div style={{ flex: 1 }} />
 
           {/* History toggle */}
           <button
             id="scheduler-history-toggle"
             onClick={() => setShowHistory(v => !v)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-mono uppercase tracking-widest text-mutedText hover:text-white border border-white/5 rounded-lg hover:bg-white/[0.03] transition-all duration-150"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 12px', fontFamily: MONO, fontSize: 9,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              color: 'rgba(255,255,255,0.45)',
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: 8, cursor: 'pointer',
+            }}
           >
             <Copy className="w-3 h-3" />
             History
-            {showHistory ? (
-              <ChevronUp className="w-3 h-3" />
-            ) : (
-              <ChevronDown className="w-3 h-3" />
-            )}
+            {showHistory ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </button>
 
-          {/* Run Now button */}
+          {/* Run Now */}
           <motion.button
             id="scheduler-run-now"
             onClick={triggerRun}
             disabled={triggerLoading || status === 'running' || !apiOnline}
             whileHover={{ scale: apiOnline ? 1.02 : 1 }}
             whileTap={{ scale: 0.97 }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-mono font-bold uppercase tracking-widest transition-all duration-200 ${
-              !apiOnline
-                ? 'bg-white/[0.03] text-gray-500 border border-white/5 cursor-not-allowed'
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '8px 16px', borderRadius: 10,
+              fontFamily: MONO, fontSize: 10, fontWeight: 700,
+              letterSpacing: '0.1em', textTransform: 'uppercase',
+              cursor: !apiOnline ? 'not-allowed' : 'pointer',
+              transition: 'box-shadow 0.2s',
+              ...(!apiOnline
+                ? { background: 'rgba(255,255,255,0.03)', color: 'rgba(255,255,255,0.3)', border: '1px solid rgba(255,255,255,0.06)' }
                 : status === 'running' || triggerLoading
-                ? 'bg-amber-400/20 text-amber-400 border border-amber-400/30 cursor-wait'
-                : 'bg-lime text-carbon-dark border border-lime/50 hover:shadow-[0_0_16px_rgba(198,255,52,0.4)]'
-            }`}
+                ? { background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }
+                : { background: LIME, color: '#0a0a0a', border: `1px solid ${LIME}`, boxShadow: '0 0 0 rgba(198,255,52,0)' }
+              ),
+            }}
+            onMouseEnter={e => {
+              if (apiOnline && status !== 'running' && !triggerLoading) {
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 16px rgba(198,255,52,0.4)';
+              }
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 0 rgba(198,255,52,0)';
+            }}
           >
-            {triggerLoading || status === 'running' ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Play className="w-3.5 h-3.5" />
-            )}
-            {triggerLoading
-              ? 'Triggering…'
-              : status === 'running'
-              ? 'Running…'
-              : 'Run Now'}
+            {triggerLoading || status === 'running'
+              ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              : <Play className="w-3.5 h-3.5" />
+            }
+            {triggerLoading ? 'Triggering…' : status === 'running' ? 'Running…' : 'Run Now'}
           </motion.button>
         </div>
 
-        {/* ── Error / offline messages ─────────────────────────────── */}
+        {/* ── Offline / error messages ────────────────────────────── */}
         <AnimatePresence>
           {triggerError && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="mt-3 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg"
-            >
-              <p className="text-[10px] text-red-400 font-mono">{triggerError}</p>
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+              style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10 }}>
+              <p style={{ fontFamily: MONO, fontSize: 10, color: '#f87171' }}>{triggerError}</p>
             </motion.div>
           )}
 
           {!apiOnline && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="mt-3 px-3 py-2 bg-white/[0.02] border border-white/5 rounded-lg"
-            >
-              <p className="text-[10px] text-mutedText font-mono">
-                <WifiOff className="w-3 h-3 inline mr-1.5 text-gray-500" />
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+              style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}>
+              <p style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
+                <WifiOff className="w-3 h-3 inline mr-1.5" style={{ color: '#6b7280' }} />
                 Scheduler offline. Start with:{' '}
-                <code className="text-white/70 bg-white/5 px-1 py-0.5 rounded">
+                <code style={{
+                  fontFamily: MONO, fontSize: 10, color: 'rgba(198,255,52,0.7)',
+                  background: 'rgba(0,0,0,0.4)', borderRadius: 6, padding: '2px 8px',
+                }}>
                   python backend/scheduler.py
                 </code>
               </p>
@@ -449,13 +363,9 @@ export function SchedulerStatusCard() {
           )}
 
           {lastError && status === 'error' && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="mt-3 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg"
-            >
-              <p className="text-[9px] text-red-400 font-mono truncate">
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+              style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10 }}>
+              <p style={{ fontFamily: MONO, fontSize: 9, color: '#f87171', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 Last error: {lastError}
               </p>
             </motion.div>
@@ -470,23 +380,16 @@ export function SchedulerStatusCard() {
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.25 }}
-              className="mt-4 overflow-hidden"
+              style={{ overflow: 'hidden' }}
             >
-              <div className="border-t border-white/5 pt-4">
-                <p className="text-[9px] font-mono uppercase tracking-widest text-mutedText mb-3">
+              <div style={{ marginTop: 16, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 16 }}>
+                <p style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 12 }}>
                   Recent Runs
                 </p>
-                {history.length === 0 ? (
-                  <p className="text-[10px] text-mutedText font-mono py-2">
-                    No runs yet.
-                  </p>
-                ) : (
-                  <div>
-                    {history.map(run => (
-                      <HistoryRow key={run.run_id} run={run} />
-                    ))}
-                  </div>
-                )}
+                {history.length === 0
+                  ? <p style={{ fontFamily: MONO, fontSize: 10, color: 'rgba(255,255,255,0.3)', padding: '8px 0' }}>No runs yet.</p>
+                  : history.map(run => <HistoryRow key={run.run_id} run={run} />)
+                }
               </div>
             </motion.div>
           )}

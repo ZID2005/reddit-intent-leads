@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLeads } from '../hooks/useLeads';
 import { User } from '@supabase/supabase-js';
 import { usePreferences } from '../hooks/usePreferences';
 import { ProfileDrawer } from '../components/ProfileDrawer';
+import { useSubscription } from '../hooks/useSubscription';
+import { UpgradeModal } from '../components/UpgradeModal';
 import { useFilters } from '../hooks/useFilters';
 import { Sidebar } from '../components/Sidebar';
 import { LiveSignalFeed } from '../components/LiveSignalFeed';
@@ -31,7 +33,11 @@ import {
   Settings,
   CheckSquare,
   Trash2,
-  BellOff
+  BellOff,
+  Zap,
+  Crown,
+  BarChart3,
+  LayoutDashboard
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Lead, CategoryType } from '../types/lead';
@@ -179,7 +185,16 @@ const ALL_CATEGORIES: CategoryType[] = ['buying_intent', 'comparison', 'pain_poi
 
 export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }: DashboardPageProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const health = useHealthMonitor();
+  const {
+    subscription,
+    isPro,
+    canExportCSV,
+    incrementUsage,
+    upgradePlan,
+  } = useSubscription(user?.id);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const { preferences, updatePreferences } = usePreferences();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -227,6 +242,7 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
 
   useEffect(() => {
     if (loading) return;
+    if (!isPro) return; // Silent early-return if Free tier: disable notifications
 
     if (isInitialLoadRef.current) {
       prevLeadsRef.current = allLeads;
@@ -514,7 +530,12 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
     setCurrentPage(1);
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
+    if (!canExportCSV) {
+      setUpgradeModalOpen(true);
+      return;
+    }
+
     if (sortedLeads.length === 0) return;
 
     const headers = ['created_at', 'subreddit', 'title', 'category', 'intent_score', 'lead_summary', 'draft_reply', 'url'];
@@ -548,6 +569,9 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    // Record usage
+    await incrementUsage('csv_exports');
   };
 
   // Helper formatting functions
@@ -604,12 +628,28 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
           <span className="font-mono text-sm font-bold tracking-wider text-white">SignalRadar</span>
         </div>
 
-        <div className="hidden md:flex items-center gap-2">
-          <span className="text-[10px] font-mono text-mutedText uppercase tracking-widest mr-1">monitoring:</span>
-          {monitoredSubs.map(sub => (
-            <span key={sub} className="px-2.5 py-0.5 rounded-full glass-panel border-white/5 bg-white/[0.01] font-mono text-[9px] text-lime/90 font-medium">
-              r/{sub}
-            </span>
+        {/* Center nav tabs */}
+        <div className="hidden md:flex items-center gap-1">
+          {[
+            { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard className="w-3.5 h-3.5" /> },
+            { label: 'Pipeline', path: '/pipeline', icon: <Kanban className="w-3.5 h-3.5" /> },
+            { label: 'Analytics', path: '/analytics', icon: <BarChart3 className="w-3.5 h-3.5" /> },
+          ].map(tab => (
+            <motion.button
+              key={tab.path}
+              whileHover={{ scale: 1.03, filter: 'brightness(1.05)' }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate(tab.path)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-mono transition-all duration-200 cursor-pointer outline-none',
+                location.pathname === tab.path
+                  ? 'bg-lime/10 border border-lime/25 text-lime font-bold'
+                  : 'text-gray-400 hover:text-white hover:bg-white/[0.04] border border-transparent'
+              )}
+            >
+              {tab.icon}
+              {tab.label}
+            </motion.button>
           ))}
         </div>
 
@@ -659,11 +699,11 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
               title="Notifications"
             >
               <Bell className="w-4 h-4" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white font-bold text-[8px] h-4 w-4 rounded-full flex items-center justify-center border border-carbon-dark shadow-lg">
+              <span className="t-badge" data-open={unreadCount > 0 ? "true" : "false"}>
+                <span className="t-badge-dot bg-red-500 text-white font-bold text-[8px] h-4 w-4 rounded-full flex items-center justify-center border border-[#070708] shadow-lg">
                   {unreadCount}
                 </span>
-              )}
+              </span>
             </button>
 
             <AnimatePresence>
@@ -673,7 +713,7 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute right-0 mt-3 w-80 glass-panel border-white/10 bg-carbon-card/95 shadow-2xl rounded-2xl overflow-hidden z-[50] flex flex-col font-sans"
+                  className="absolute right-0 mt-3 w-80 max-w-[calc(100vw-2rem)] notif-glass-panel rounded-2xl overflow-hidden z-[50] flex flex-col font-sans"
                 >
                   {/* Preferences View */}
                   {showNotifPrefs ? (
@@ -869,23 +909,64 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
       {/* ── Main layout ─────────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col md:flex-row pt-[108px] h-screen overflow-hidden">
         
-        {/* Sidebar Navigation & Filters */}
-        <Sidebar
-          currentView={sidebarView}
-          setView={handleSetView}
-          totalLeads={totalLeadsCount}
-          savedCount={savedLeadsCount}
-          contactedCount={contactedLeadsCount}
-          filters={filters}
-          availableSubreddits={availableSubreddits}
-          togglePriority={() => {}} // Not needed for lead dashboard
-          toggleCategory={toggleCategory}
-          toggleSubreddit={toggleSubreddit}
-          setIntentRange={setIntentRange}
-          setConfidenceRange={setConfidenceRange}
-          hasActiveFilters={hasActiveFilters}
-          onResetFilters={resetFilters}
-        />
+        {/* Sidebar Navigation & Filters — hidden on mobile, shown on md+ */}
+        <div className="hidden md:flex md:flex-col md:h-full md:w-[260px] md:flex-shrink-0">
+          <Sidebar
+            currentView={sidebarView}
+            setView={handleSetView}
+            totalLeads={totalLeadsCount}
+            savedCount={savedLeadsCount}
+            contactedCount={contactedLeadsCount}
+            filters={filters}
+            availableSubreddits={availableSubreddits}
+            togglePriority={() => {}} // Not needed for lead dashboard
+            toggleCategory={toggleCategory}
+            toggleSubreddit={toggleSubreddit}
+            setIntentRange={setIntentRange}
+            setConfidenceRange={setConfidenceRange}
+            hasActiveFilters={hasActiveFilters}
+            onResetFilters={resetFilters}
+          />
+        </div>
+
+        {/* ── Mobile Bottom Tab Bar — fixed, icon-only, shown only on mobile ── */}
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-[60px] flex items-center justify-around px-2"
+          style={{
+            background: 'rgba(7,7,8,0.92)',
+            backdropFilter: 'blur(24px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+            borderTop: '1px solid rgba(255,255,255,0.08)',
+          }}
+        >
+          {[
+            { id: 'all' as const,       path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard' },
+            { id: 'pipeline' as const,  path: '/pipeline',  icon: <Kanban           className="w-5 h-5" />, label: 'Pipeline' },
+            { id: 'analytics' as const, path: '/analytics', icon: <BarChart3        className="w-5 h-5" />, label: 'Analytics' },
+            { id: 'saved' as const,     path: '/saved',     icon: <Star             className="w-5 h-5" />, label: 'Saved' },
+            { id: 'contacted' as const, path: '/contacts',  icon: <PhoneCall        className="w-5 h-5" />, label: 'Contacts' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => navigate(tab.path)}
+              className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full cursor-pointer outline-none"
+              style={{ minHeight: 44, minWidth: 44 }}
+              aria-label={tab.label}
+            >
+              <span className={cn(
+                'transition-colors duration-150',
+                sidebarView === tab.id ? 'text-[#C6FF34]' : 'text-gray-500'
+              )}>
+                {tab.icon}
+              </span>
+              <span className={cn(
+                'text-[9px] font-mono tracking-wide transition-colors duration-150',
+                sidebarView === tab.id ? 'text-[#C6FF34]' : 'text-gray-600'
+              )}>
+                {tab.label}
+              </span>
+            </button>
+          ))}
+        </div>
 
         {/* ── Main Content Area ──────────────────────────────────────────────── */}
         {currentView === 'analytics' ? (
@@ -895,21 +976,45 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
               loading={loading}
               error={error}
               retryFetch={retryFetch}
+              isPro={isPro}
+              onUpgrade={() => setUpgradeModalOpen(true)}
             />
           </React.Suspense>
         ) : currentView === 'pipeline' ? (
           <React.Suspense fallback={<PipelineLoadingFallback />}>
-            <PipelineBoard
-              leads={filteredLeads}
-              loading={loading}
-              error={error}
-              retryFetch={retryFetch}
-              updateLeadStatus={updateLeadStatus}
-              onOpenDrawer={openDrawer}
-            />
+            <div className="flex-1 flex flex-col h-full overflow-hidden pb-20 md:pb-0">
+              {!isPro && (
+                <div className="mx-6 md:mx-8 mt-4 p-3 rounded-xl border border-lime/20 bg-lime/5 text-[#C6FF34] text-xs font-mono flex items-center justify-between gap-4 shrink-0">
+                  <span className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 animate-pulse fill-lime/10" />
+                    <span>Pipeline Board is in <strong>Read-Only Mode</strong>. Upgrade to Pro to custom-manage opportunity stages.</span>
+                  </span>
+                  <button 
+                    onClick={() => setUpgradeModalOpen(true)}
+                    className="px-3 py-1.5 bg-[#C6FF34] text-black font-bold font-mono text-[10px] rounded-lg hover:brightness-110 cursor-pointer transition-all active:scale-[0.98] outline-none"
+                  >
+                    Upgrade Now
+                  </button>
+                </div>
+              )}
+              <PipelineBoard
+                leads={filteredLeads}
+                loading={loading}
+                error={error}
+                retryFetch={retryFetch}
+                updateLeadStatus={async (postId, status) => {
+                  if (!isPro) {
+                    setUpgradeModalOpen(true);
+                    return;
+                  }
+                  await updateLeadStatus(postId, status);
+                }}
+                onOpenDrawer={openDrawer}
+              />
+            </div>
           </React.Suspense>
         ) : (
-          <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-6">
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 pb-24 md:pb-8 space-y-6">
             
             {/* Title & Reload button */}
             <div className="flex justify-between items-center">
@@ -1317,10 +1422,21 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
               await updateLeadNotes(liveDrawerLead.post_id, notes);
             }
           }}
+          user={user}
         />
       </React.Suspense>
 
       <ToastContainer />
+
+      <UpgradeModal
+        isOpen={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        targetPlan="pro"
+        currentPlan={subscription?.plan || 'free'}
+        onConfirm={async () => {
+          await upgradePlan('pro');
+        }}
+      />
 
       {user && (
         <ProfileDrawer
@@ -1328,6 +1444,11 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
           onClose={() => setIsProfileOpen(false)}
           user={user}
           onLogout={onLogout}
+          isPro={isPro}
+          onUpgrade={() => {
+            setIsProfileOpen(false);
+            setUpgradeModalOpen(true);
+          }}
         />
       )}
     </div>

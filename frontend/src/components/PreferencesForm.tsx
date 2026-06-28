@@ -10,11 +10,19 @@ import {
   Sun, 
   RotateCcw, 
   Check, 
-  Save 
+  Save,
+  Lock
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { User } from '@supabase/supabase-js';
 
-export function PreferencesForm() {
+interface PreferencesFormProps {
+  user?: User | null;
+  isPro?: boolean;
+  onUpgrade?: () => void;
+}
+
+export function PreferencesForm({ user, isPro = false, onUpgrade }: PreferencesFormProps) {
   const { preferences, loading: prefLoading, updatePreferences, resetPreferences } = usePreferences();
   const { addToast } = useToast();
   
@@ -31,7 +39,7 @@ export function PreferencesForm() {
   // Sync state when preferences are loaded
   useEffect(() => {
     if (!prefLoading) {
-      setLocalNotifications(preferences.browserNotificationsEnabled);
+      setLocalNotifications(isPro ? preferences.browserNotificationsEnabled : false);
       setLocalThreshold(preferences.highIntentThreshold);
       setLocalInterval(preferences.autoRefreshInterval);
       setLocalOutreachTab(preferences.defaultOutreachTab);
@@ -43,14 +51,14 @@ export function PreferencesForm() {
       }, 400);
       return () => clearTimeout(timer);
     }
-  }, [prefLoading, preferences]);
+  }, [prefLoading, preferences, isPro]);
 
   const handleSave = () => {
     setSaving(true);
     // Simulate minor delay for premium UI feel
     setTimeout(() => {
       updatePreferences({
-        browserNotificationsEnabled: localNotifications,
+        browserNotificationsEnabled: isPro ? localNotifications : false,
         highIntentThreshold: localThreshold,
         autoRefreshInterval: localInterval,
         defaultOutreachTab: localOutreachTab,
@@ -148,22 +156,33 @@ export function PreferencesForm() {
           <label className="text-xs font-mono font-bold uppercase tracking-wider text-white flex items-center gap-2">
             <Bell className="w-3.5 h-3.5 text-lime" />
             Browser Notifications
+            {!isPro && (
+              <span className="flex items-center gap-1 text-[9px] font-mono font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20">
+                <Lock className="w-2.5 h-2.5 text-amber-400" /> PRO ONLY
+              </span>
+            )}
           </label>
           <p className="text-[11px] text-mutedText leading-relaxed">
             Receive instant desktop alerts when qualified leads are found.
           </p>
         </div>
         <button
-          onClick={() => setLocalNotifications(!localNotifications)}
+          onClick={() => {
+            if (!isPro) {
+              onUpgrade?.();
+            } else {
+              setLocalNotifications(!localNotifications);
+            }
+          }}
           className={cn(
             "w-12 h-6 rounded-full p-1 transition-all duration-300 relative cursor-pointer outline-none",
-            localNotifications ? "bg-lime" : "bg-white/10"
+            localNotifications && isPro ? "bg-lime" : "bg-white/10"
           )}
         >
           <div 
             className={cn(
               "w-4 h-4 rounded-full bg-carbon-dark shadow-md transition-all duration-300",
-              localNotifications ? "translate-x-6" : "translate-x-0"
+              localNotifications && isPro ? "translate-x-6" : "translate-x-0"
             )}
           />
         </button>
@@ -211,7 +230,7 @@ export function PreferencesForm() {
         <select
           value={localInterval}
           onChange={(e) => setLocalInterval(Number(e.target.value))}
-          className="px-3 py-2 text-xs font-mono bg-[#0A0A0A] border border-white/10 rounded-lg text-white outline-none cursor-pointer focus:border-lime/40 transition-colors"
+          className="flex-shrink-0 px-3 py-2 text-xs font-mono bg-[#0A0A0A] border border-white/10 rounded-lg text-white outline-none cursor-pointer focus:border-lime/40 transition-colors"
         >
           <option value={30}>30s</option>
           <option value={60}>1m</option>

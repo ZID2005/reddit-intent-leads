@@ -33,7 +33,7 @@ export function useOutreachGenerator() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const generateMessage = useCallback(async (channel: OutreachChannel, lead: LeadOutreachContext) => {
+  const generateMessage = useCallback(async (channel: OutreachChannel, lead: LeadOutreachContext, userId?: string) => {
     setLoading(true);
     setError(null);
 
@@ -42,6 +42,7 @@ export function useOutreachGenerator() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(userId ? { 'X-User-Id': userId } : {}),
         },
         body: JSON.stringify({
           post_id: lead.post_id,

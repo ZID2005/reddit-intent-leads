@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Mail, Calendar, LogOut } from 'lucide-react';
+import { X, Mail, Calendar, LogOut, Crown, ChevronRight, BarChart3, Kanban, LayoutDashboard } from 'lucide-react';
 import { User } from '@supabase/supabase-js';
+import { useNavigate } from 'react-router-dom';
 import { PreferencesForm } from './PreferencesForm';
 
 interface ProfileDrawerProps {
@@ -9,10 +10,13 @@ interface ProfileDrawerProps {
   onClose: () => void;
   user: User;
   onLogout: () => void;
+  isPro?: boolean;
+  onUpgrade?: () => void;
 }
 
-export function ProfileDrawer({ isOpen, onClose, user, onLogout }: ProfileDrawerProps) {
+export function ProfileDrawer({ isOpen, onClose, user, onLogout, isPro = false, onUpgrade }: ProfileDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   // Close drawer on ESC key
   useEffect(() => {
@@ -132,6 +136,43 @@ export function ProfileDrawer({ isOpen, onClose, user, onLogout }: ProfileDrawer
                 </button>
               </div>
 
+              {/* Quick Nav Links — Mobile */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-gray-600 font-bold">Quick Navigation</span>
+                  <div className="h-px bg-white/5 flex-1" />
+                </div>
+                {[
+                  { label: 'Dashboard', icon: <LayoutDashboard className="w-3.5 h-3.5" />, path: '/dashboard' },
+                  { label: 'Pipeline', icon: <Kanban className="w-3.5 h-3.5" />, path: '/pipeline' },
+                  { label: 'Analytics', icon: <BarChart3 className="w-3.5 h-3.5" />, path: '/analytics' },
+                ].map(link => (
+                  <button
+                    key={link.path}
+                    onClick={() => { navigate(link.path); onClose(); }}
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border border-transparent hover:border-white/[0.06] hover:bg-white/[0.02] text-gray-400 hover:text-white transition-all cursor-pointer outline-none text-xs font-mono"
+                  >
+                    <div className="flex items-center gap-2.5">{link.icon}{link.label}</div>
+                    <ChevronRight className="w-3.5 h-3.5 opacity-40" />
+                  </button>
+                ))}
+                {/* Subscription Link */}
+                <button
+                  onClick={() => { navigate('/subscription'); onClose(); }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all cursor-pointer outline-none text-xs font-mono font-bold ${
+                    isPro
+                      ? 'border-lime/25 bg-lime/[0.04] text-lime hover:bg-lime/[0.07]'
+                      : 'border-white/[0.06] bg-white/[0.02] text-white/50 hover:text-white/70 hover:border-white/10'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Crown className="w-3.5 h-3.5" />
+                    Subscription {isPro ? '(Pro)' : '(Free)'}
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 opacity-40" />
+                </button>
+              </div>
+
               {/* Preferences Divider Header */}
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
@@ -140,7 +181,7 @@ export function ProfileDrawer({ isOpen, onClose, user, onLogout }: ProfileDrawer
                 </div>
                 
                 {/* Preferences Form Integration */}
-                <PreferencesForm />
+                <PreferencesForm user={user} isPro={isPro} onUpgrade={onUpgrade} />
               </div>
 
             </div>

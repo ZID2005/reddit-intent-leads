@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, LogOut, ChevronRight, LayoutDashboard } from 'lucide-react';
+import { Menu, X, LogOut, ChevronRight, LayoutDashboard, Crown } from 'lucide-react';
 import { User } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -32,8 +32,10 @@ export function Navbar({ user, onOpenAuth, onNavigateToDashboard, onNavigateToPr
   const supabaseUser = user;
   const firstName = user ? getFirstName(user.email || '', user.user_metadata?.full_name) : '';
   const firstInitial = firstName.charAt(0).toUpperCase() || 'U';
+  const isProPlan = user?.user_metadata?.plan?.toLowerCase() === 'pro';
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
 
   useEffect(() => {
     const handleScroll = () => {
@@ -63,28 +65,55 @@ export function Navbar({ user, onOpenAuth, onNavigateToDashboard, onNavigateToPr
           WebkitBackdropFilter: 'blur(32px) saturate(210%)',
         }}
       >
-        {/* Left: SignalRadar logo wordmark in Clash Display with a small volt-lime pulsing dot */}
-        <div 
-          className="flex items-center gap-2 cursor-pointer py-2" 
-          onClick={() => {
-            if (window.location.pathname === '/') {
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            } else {
-              navigate('/');
-            }
-          }}
-          style={{ minHeight: '44px' }}
-        >
-          <div className="relative w-2.5 h-2.5 flex items-center justify-center">
-            <motion.span
-              animate={{ scale: [1, 1.4, 1], opacity: [1, 0, 1] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-              className="absolute w-2.5 h-2.5 rounded-full bg-[#C6FF34] shadow-[0_0_8px_#C6FF34]"
-            />
+        {/* Left section: logo + subscription pill */}
+        <div className="flex items-center gap-3">
+          {/* SignalRadar logo */}
+          <div
+            className="flex items-center gap-2 cursor-pointer py-2"
+            onClick={() => {
+              if (window.location.pathname === '/') {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              } else {
+                navigate('/');
+              }
+            }}
+            style={{ minHeight: '44px' }}
+          >
+            <div className="relative w-2.5 h-2.5 flex items-center justify-center">
+              <motion.span
+                animate={{ scale: [1, 1.4, 1], opacity: [1, 0, 1] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                className="absolute w-2.5 h-2.5 rounded-full bg-[#C6FF34] shadow-[0_0_8px_#C6FF34]"
+              />
+            </div>
+            <span className="font-display text-lg font-bold tracking-tight text-white">
+              SignalRadar
+            </span>
           </div>
-          <span className="font-display text-lg font-bold tracking-tight text-white">
-            SignalRadar
-          </span>
+
+          {/* Subscription glassmorphic crown pill */}
+          {user && (
+            <motion.button
+              whileTap={{ scale: 0.94 }}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.15, duration: 0.4 }}
+              onClick={() => navigate('/subscription')}
+              className={`hidden md:inline-flex btn-liquid-glass-crown${isProPlan ? ' is-pro' : ''} px-3.5 py-2 rounded-full cursor-pointer outline-none select-none`}
+              style={{ minHeight: '36px', fontSize: '11px', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}
+              title={isProPlan ? 'Pro Plan — Manage subscription' : 'Free Plan — Upgrade to Pro'}
+            >
+              <Crown className="w-3.5 h-3.5 relative z-10 shrink-0" />
+              <span className="relative z-10">{isProPlan ? 'Pro' : 'Free'}</span>
+              {isProPlan && (
+                <motion.span
+                  animate={{ scale: [1, 1.3, 1], opacity: [0.6, 1, 0.6] }}
+                  transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                  className="relative z-10 ml-0.5 w-1.5 h-1.5 rounded-full bg-[#C6FF34] shadow-[0_0_6px_#C6FF34] inline-block"
+                />
+              )}
+            </motion.button>
+          )}
         </div>
 
         {/* Center: nav links in DM Sans */}
@@ -108,8 +137,8 @@ export function Navbar({ user, onOpenAuth, onNavigateToDashboard, onNavigateToPr
           ) : user ? (
             <div className="flex items-center gap-3">
               <motion.button
-                whileTap={{ scale: 0.97 }}
-                whileHover={{ borderColor: 'rgba(198,255,52,0.3)' }}
+                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.05 }}
                 onClick={() => {
                   if (onNavigateToProfile) {
                     onNavigateToProfile();
@@ -117,25 +146,55 @@ export function Navbar({ user, onOpenAuth, onNavigateToDashboard, onNavigateToPr
                     navigate('/profile');
                   }
                 }}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur-md cursor-pointer hover:border-lime/30 hover:bg-white/8 transition-all duration-200 select-none outline-none"
+                className="relative flex items-center justify-center rounded-full cursor-pointer select-none outline-none"
+                style={
+                  isProPlan
+                    ? {
+                        background: 'conic-gradient(from 0deg, #BF953F, #FCF6BA, #B38728, #FBF5B7, #AA771C)',
+                        boxShadow: '0 0 16px rgba(251, 245, 183, 0.45)',
+                        padding: '1.5px',
+                        width: '38px',
+                        height: '38px',
+                      }
+                    : {
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        width: '38px',
+                        height: '38px',
+                        background: 'transparent',
+                      }
+                }
+                title={isProPlan ? "Pro Plan Active" : "Free Plan"}
               >
-                <div className="w-7 h-7 rounded-full bg-lime flex items-center justify-center font-mono text-black font-bold text-xs flex-shrink-0">
-                  {firstInitial}
-                </div>
-                <span className="hidden md:inline font-mono text-xs text-white/70 tracking-wide">
-                  {firstName}
-                </span>
+                {isProPlan ? (
+                  <div className="w-full h-full rounded-full bg-[#070708] flex items-center justify-center p-0.5">
+                    <div className="w-full h-full rounded-full bg-[#C6FF34] flex items-center justify-center font-mono text-[#070708] font-bold text-xs">
+                      {firstInitial}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full h-full rounded-full bg-[#C6FF34] flex items-center justify-center font-mono text-[#070708] font-bold text-xs">
+                    {firstInitial}
+                  </div>
+                )}
+                {isProPlan && (
+                  <div 
+                    className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border border-[#AA771C]/40 shadow-[0_2px_6px_rgba(0,0,0,0.5)]"
+                    style={{
+                      background: 'linear-gradient(135deg, #BF953F 0%, #FCF6BA 50%, #B38728 100%)',
+                    }}
+                  >
+                    <span className="text-[8px] text-[#070708] font-extrabold select-none leading-none">★</span>
+                  </div>
+                )}
               </motion.button>
 
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 whileHover={{ scale: 1.02 }}
                 onClick={onLogout}
-                className="btn-liquid-glass-danger flex items-center gap-1.5 px-3.5 py-2 rounded-full cursor-pointer font-mono text-[10px] text-red-400/70 select-none outline-none uppercase tracking-wider"
+                className="btn-liquid-glass-danger flex items-center gap-1.5 px-3.5 py-2 rounded-full cursor-pointer font-mono text-[10px] text-[#ef4444] hover:text-[#ff6b6b] select-none outline-none uppercase tracking-wider"
                 style={{ minHeight: '38px' }}
               >
-                {/* Specular glass reflection crescent */}
-                <div className="absolute top-0.5 left-2.5 right-2.5 h-[35%] bg-gradient-to-b from-white/20 to-transparent rounded-t-full pointer-events-none z-10" />
                 <LogOut className="w-3.5 h-3.5 relative z-10" />
                 <span className="relative z-10">Log Out</span>
               </motion.button>
@@ -252,12 +311,10 @@ export function Navbar({ user, onOpenAuth, onNavigateToDashboard, onNavigateToPr
                           onLogout();
                           setMobileMenuOpen(false);
                         }}
-                        className="btn-liquid-glass-danger flex items-center justify-center rounded-xl cursor-pointer outline-none relative overflow-hidden text-red-400/70"
+                        className="btn-liquid-glass-danger flex items-center justify-center rounded-xl cursor-pointer outline-none relative overflow-hidden text-[#ef4444] hover:text-[#ff6b6b]"
                         style={{ width: '42px', height: '42px' }}
                         title="Log Out"
                       >
-                        {/* Specular glass reflection crescent */}
-                        <div className="absolute top-0.5 left-1.5 right-1.5 h-[35%] bg-gradient-to-b from-white/20 to-transparent rounded-t-xl pointer-events-none z-10" />
                         <LogOut className="w-4 h-4 relative z-10" />
                       </motion.button>
                     </div>
@@ -272,6 +329,21 @@ export function Navbar({ user, onOpenAuth, onNavigateToDashboard, onNavigateToPr
                     >
                       <LayoutDashboard className="w-4 h-4" />
                       Go to Dashboard
+                    </button>
+
+                    {/* Subscription link in mobile sheet */}
+                    <button
+                      onClick={() => {
+                        navigate('/subscription');
+                        setMobileMenuOpen(false);
+                      }}
+                      className={`w-full py-3 rounded-xl flex items-center justify-center gap-2 cursor-pointer font-mono text-xs font-bold uppercase tracking-wider outline-none btn-liquid-glass-crown${isProPlan ? ' is-pro' : ''}`}
+                      style={{ minHeight: '44px' }}
+                    >
+                      <Crown className="w-4 h-4 relative z-10" />
+                      <span className="relative z-10">
+                        {isProPlan ? '⭐ Pro Plan Active' : 'Subscription — Free'}
+                      </span>
                     </button>
                   </>
                 ) : (

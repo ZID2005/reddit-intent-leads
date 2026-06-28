@@ -1,207 +1,225 @@
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { 
-  FolderSearch, 
-  Zap, 
-  AlertCircle, 
-  Info, 
-  Star, 
-  PhoneCall, 
-  Target, 
-  ShieldCheck,
-  Calendar
+import React, { useEffect, useState, useRef } from 'react';
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from 'framer-motion';
+import {
+  FolderSearch,
+  Zap,
+  AlertCircle,
+  Info,
+  Star,
+  PhoneCall,
+  Target,
+  Calendar,
 } from 'lucide-react';
 import { Lead } from '../../types/lead';
+
+// ─── Design tokens ─────────────────────────────────────────────────────────────
+const NOHEMI = "'Nohemi', sans-serif";
+const MONO = "'DM Mono', monospace";
+const LIME = '#C6FF34';
+
+// ─── Liquid glass ──────────────────────────────────────────────────────────────
+const glass: React.CSSProperties = {
+  background:           'rgba(255,255,255,0.035)',
+  border:               '1px solid rgba(255,255,255,0.08)',
+  backdropFilter:       'blur(24px) saturate(180%)',
+  WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+  borderRadius:         20,
+  boxShadow:            '0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)',
+};
+
+// ─── CountUp with motion value ─────────────────────────────────────────────────
+function CountUp({ to }: { to: number }) {
+  const count = useMotionValue(0);
+  const rounded = useTransform(count, v => Math.round(v).toLocaleString());
+  useEffect(() => {
+    const ctrl = animate(count, to, { duration: 1.1, ease: [0.22, 1, 0.36, 1] });
+    return ctrl.stop;
+  }, [to]);
+  return <motion.span>{rounded}</motion.span>;
+}
 
 interface AnalyticsCardsProps {
   leads: Lead[];
 }
 
+interface CardDef {
+  title: string;
+  value: number;
+  icon: React.ReactNode;
+  accentColor: string;
+  valueColor: string;
+  isPercentage?: boolean;
+  radial?: boolean;
+}
+
 export function AnalyticsCards({ leads }: AnalyticsCardsProps) {
-  const totalLeads = leads.length;
-  
-  const highPriority = leads.filter(l => l.priority === 'high').length;
-  const mediumPriority = leads.filter(l => l.priority === 'medium').length;
-  const lowPriority = leads.filter(l => l.priority === 'low').length;
-  
-  const savedLeads = leads.filter(l => l.status === 'saved').length;
-  const contactedLeads = leads.filter(l => l.status === 'contacted').length;
-  
-  const leadsWithIntent = leads.filter(l => l.intent_score !== null && l.intent_score !== undefined && l.intent_score > 0);
-  const avgIntent = leadsWithIntent.length > 0 
-    ? Math.round(leadsWithIntent.reduce((sum, l) => sum + l.intent_score, 0) / leadsWithIntent.length) 
+  const totalLeads        = leads.length;
+  const highPriority      = leads.filter(l => l.priority === 'high').length;
+  const mediumPriority    = leads.filter(l => l.priority === 'medium').length;
+  const lowPriority       = leads.filter(l => l.priority === 'low').length;
+  const savedLeads        = leads.filter(l => l.status === 'saved').length;
+  const contactedLeads    = leads.filter(l => l.status === 'contacted').length;
+  const leadsWithIntent   = leads.filter(l => l.intent_score != null && l.intent_score > 0);
+  const avgIntent         = leadsWithIntent.length > 0
+    ? Math.round(leadsWithIntent.reduce((s, l) => s + l.intent_score, 0) / leadsWithIntent.length)
     : 0;
-    
-  const leadsCollectedToday = leads.filter(l => {
-    const dateVal = l.created_at || l.processed_at;
-    if (!dateVal) return false;
-    const leadDate = new Date(dateVal);
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    return leadDate >= startOfToday;
+  const leadsToday        = leads.filter(l => {
+    const dv = l.created_at || l.processed_at;
+    if (!dv) return false;
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    return new Date(dv) >= start;
   }).length;
 
-  const cardData = [
-    {
-      title: 'Total Leads',
-      value: totalLeads,
-      icon: <FolderSearch className="w-4 h-4 text-lime" />,
-      color: 'lime',
-      glowColor: 'rgba(198, 255, 52, 0.15)',
-    },
-    {
-      title: 'High Priority',
-      value: highPriority,
-      icon: <Zap className="w-4 h-4 text-red-500" />,
-      color: 'red',
-      glowColor: 'rgba(239, 68, 68, 0.15)',
-    },
-    {
-      title: 'Medium Priority',
-      value: mediumPriority,
-      icon: <AlertCircle className="w-4 h-4 text-amber-500" />,
-      color: 'amber',
-      glowColor: 'rgba(245, 158, 11, 0.15)',
-    },
-    {
-      title: 'Low Priority',
-      value: lowPriority,
-      icon: <Info className="w-4 h-4 text-gray-400" />,
-      color: 'gray',
-      glowColor: 'rgba(156, 163, 175, 0.1)',
-    },
-    {
-      title: 'Saved Leads',
-      value: savedLeads,
-      icon: <Star className="w-4 h-4 text-yellow-400 fill-yellow-400/10" />,
-      color: 'yellow',
-      glowColor: 'rgba(250, 204, 21, 0.15)',
-    },
-    {
-      title: 'Contacted Leads',
-      value: contactedLeads,
-      icon: <PhoneCall className="w-4 h-4 text-cyan-400" />,
-      color: 'cyan',
-      glowColor: 'rgba(34, 211, 238, 0.15)',
-    },
-    {
-      title: 'Avg Intent Score',
-      value: avgIntent,
-      isPercentage: true,
-      icon: <Target className="w-4 h-4 text-lime" />,
-      color: 'lime',
-      glowColor: 'rgba(198, 255, 52, 0.15)',
-      radial: true,
-    },
-    {
-      title: 'Collected Today',
-      value: leadsCollectedToday,
-      icon: <Calendar className="w-4 h-4 text-emerald-400" />,
-      color: 'emerald',
-      glowColor: 'rgba(52, 211, 153, 0.15)',
-    },
+  const cards: CardDef[] = [
+    { title: 'Total Leads',      value: totalLeads,     icon: <FolderSearch className="w-4 h-4" />, accentColor: '#fff',               valueColor: '#fff' },
+    { title: 'High Priority',    value: highPriority,   icon: <Zap          className="w-4 h-4" />, accentColor: LIME,                 valueColor: LIME },
+    { title: 'Medium Priority',  value: mediumPriority, icon: <AlertCircle  className="w-4 h-4" />, accentColor: '#F59E0B',            valueColor: '#F59E0B' },
+    { title: 'Low Priority',     value: lowPriority,    icon: <Info         className="w-4 h-4" />, accentColor: 'rgba(255,255,255,0.4)', valueColor: 'rgba(255,255,255,0.6)' },
+    { title: 'Saved Leads',      value: savedLeads,     icon: <Star         className="w-4 h-4" />, accentColor: 'rgba(198,255,52,0.8)', valueColor: 'rgba(198,255,52,0.8)' },
+    { title: 'Contacted',        value: contactedLeads, icon: <PhoneCall    className="w-4 h-4" />, accentColor: 'rgba(255,255,255,0.5)', valueColor: 'rgba(255,255,255,0.5)' },
+    { title: 'Avg Intent Score', value: avgIntent,      icon: <Target       className="w-4 h-4" />, accentColor: LIME, valueColor: LIME, isPercentage: true, radial: true },
+    { title: 'Collected Today',  value: leadsToday,     icon: <Calendar     className="w-4 h-4" />, accentColor: '#34D399',            valueColor: '#34D399' },
   ];
 
+  const containerVariants = {
+    hidden: {},
+    visible: { transition: { staggerChildren: 0.07 } },
+  };
+
+  const cardVariants = {
+    hidden:  { opacity: 0, y: 30 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] as const } },
+  };
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full select-none">
-      {cardData.map((card, idx) => (
-        <motion.div
-          key={card.title}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: idx * 0.04 }}
-          whileHover={{ y: -2, boxShadow: `0 8px 24px ${card.glowColor}` }}
-          className="glass-panel p-4 md:p-5 rounded-2xl flex items-center justify-between min-h-[105px] border border-white/5 relative overflow-hidden group"
-        >
-          {/* Accent colored top highlight line */}
-          <div className={`absolute top-0 left-0 right-0 h-[2px] transition-opacity duration-300 opacity-60 group-hover:opacity-100 ${
-            card.color === 'lime' ? 'bg-lime' :
-            card.color === 'red' ? 'bg-red-500' :
-            card.color === 'amber' ? 'bg-amber-500' :
-            card.color === 'yellow' ? 'bg-yellow-400' :
-            card.color === 'cyan' ? 'bg-cyan-400' :
-            card.color === 'emerald' ? 'bg-emerald-400' : 'bg-white/10'
-          }`} />
-
-          <div className="flex flex-col justify-between h-full space-y-1">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-mutedText/80">
-              {card.title}
-            </span>
-            <div className="flex items-baseline gap-0.5">
-              <span className="text-2xl md:text-3xl font-bold font-mono tracking-tight text-white">
-                <CountUp target={card.value} />
-              </span>
-              {card.isPercentage && (
-                <span className={`text-xs font-mono font-medium ml-0.5 ${
-                  card.color === 'lime' ? 'text-lime' : 'text-emerald-400'
-                }`}>%</span>
-              )}
-            </div>
-          </div>
-
-          {card.radial ? (
-            <div className="relative w-11 h-11 flex-shrink-0 ml-2">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                <path
-                  className="text-white/5"
-                  strokeWidth="3.5"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
-                <motion.path
-                  className={card.color === 'lime' ? 'text-lime' : 'text-emerald-400'}
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                  stroke="currentColor"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  initial={{ strokeDasharray: "0, 100" }}
-                  animate={{ strokeDasharray: `${card.value}, 100` }}
-                  transition={{ duration: 0.8, ease: "easeOut", delay: idx * 0.05 }}
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center font-mono text-[9px] text-white/60">
-                {card.value}%
-              </div>
-            </div>
-          ) : (
-            <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 group-hover:bg-white/[0.04] transition-colors duration-200">
-              {card.icon}
-            </div>
-          )}
-        </motion.div>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: '-80px' }}
+      className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 w-full select-none"
+    >
+      {cards.map((card) => (
+        <StatCard key={card.title} card={card} />
       ))}
-    </div>
+    </motion.div>
   );
 }
 
-function CountUp({ target }: { target: number }) {
-  const [count, setCount] = useState(0);
+// ─── Individual stat card ──────────────────────────────────────────────────────
+function StatCard({ card }: { card: CardDef }) {
+  const [pos, setPos]     = useState({ x: 0, y: 0 });
+  const [hovered, setHov] = useState(false);
 
-  useEffect(() => {
-    let start = 0;
-    const end = target;
-    if (start === end) {
-      setCount(end);
-      return;
-    }
+  const cardVariants = {
+    hidden:  { opacity: 0, y: 30 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] as const } },
+  };
 
-    const duration = 500; // ms
-    const stepTime = Math.max(Math.floor(duration / Math.max(end, 1)), 10);
-    
-    const timer = setInterval(() => {
-      start += Math.ceil((end - start) / 6);
-      if (start >= end) {
-        setCount(end);
-        clearInterval(timer);
-      } else {
-        setCount(start);
-      }
-    }, stepTime);
+  return (
+    <motion.div
+      variants={cardVariants}
+      whileHover={{ y: -3, transition: { duration: 0.25 } }}
+      whileTap={{ scale: 0.97 }}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      onMouseMove={e => {
+        const r = e.currentTarget.getBoundingClientRect();
+        setPos({ x: e.clientX - r.left, y: e.clientY - r.top });
+      }}
+      style={{
+        ...glass,
+        border: hovered
+          ? '1px solid rgba(255,255,255,0.14)'
+          : '1px solid rgba(255,255,255,0.08)',
+        background: hovered ? 'rgba(255,255,255,0.055)' : 'rgba(255,255,255,0.035)',
+        boxShadow: hovered
+          ? '0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)'
+          : '0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)',
+        padding: '20px',
+        position: 'relative',
+        overflow: 'hidden',
+        cursor: 'default',
+        minHeight: 120,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        transition: 'background 0.25s, border-color 0.25s, box-shadow 0.25s',
+      }}
+    >
+      {/* Mouse-tracked radial sheen */}
+      <AnimatePresence>
+        {hovered && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            style={{
+              position: 'absolute', inset: 0, pointerEvents: 'none',
+              background: `radial-gradient(140px circle at ${pos.x}px ${pos.y}px, rgba(198,255,52,0.07), transparent 75%)`,
+            }}
+          />
+        )}
+      </AnimatePresence>
 
-    return () => clearInterval(timer);
-  }, [target]);
+      {/* Top accent line */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+        background: `linear-gradient(90deg, transparent, ${card.accentColor}55, transparent)`,
+        opacity: hovered ? 1 : 0.5,
+        transition: 'opacity 0.25s',
+      }} />
 
-  return <>{count}</>;
+      {/* Label row */}
+      <div className="flex items-center justify-between relative z-10">
+        <span style={{
+          fontFamily: NOHEMI, fontSize: 9, letterSpacing: '0.14em',
+          textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)',
+        }}>
+          {card.title}
+        </span>
+        {/* Icon */}
+        {card.radial ? (
+          <div className="relative w-9 h-9 flex-shrink-0">
+            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+              <path strokeWidth="3" stroke="rgba(255,255,255,0.05)" fill="none"
+                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <motion.path
+                stroke={LIME} strokeWidth="3" strokeLinecap="round" fill="none"
+                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                initial={{ strokeDasharray: '0, 100' }}
+                animate={{ strokeDasharray: `${card.value}, 100` }}
+                transition={{ duration: 0.9, ease: 'easeOut' }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center" style={{ fontFamily: NOHEMI, fontSize: 8, color: 'rgba(255,255,255,0.5)' }}>
+              {card.value}%
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            padding: '7px',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.07)',
+            borderRadius: 9,
+            color: card.accentColor,
+          }}>
+            {card.icon}
+          </div>
+        )}
+      </div>
+
+      {/* Value */}
+      <div className="relative z-10">
+        <div style={{
+          fontFamily: NOHEMI, fontSize: 'clamp(1.6rem, 3vw, 2.4rem)',
+          fontWeight: 800, color: card.valueColor, letterSpacing: '-0.02em', lineHeight: 1,
+        }}>
+          <CountUp to={card.value} />
+          {card.isPercentage && !card.radial && (
+            <span style={{ fontSize: '0.55em', marginLeft: 2, color: card.accentColor }}>%</span>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
 }

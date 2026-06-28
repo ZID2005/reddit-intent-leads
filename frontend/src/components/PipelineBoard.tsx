@@ -13,6 +13,7 @@ interface PipelineBoardProps {
   retryFetch: () => void;
   updateLeadStatus: (postId: string, status: 'new' | 'saved' | 'contacted') => Promise<void>;
   onOpenDrawer: (lead: Lead) => void;
+  isReadOnly?: boolean;
 }
 
 export function PipelineBoard({
@@ -22,6 +23,7 @@ export function PipelineBoard({
   retryFetch,
   updateLeadStatus,
   onOpenDrawer,
+  isReadOnly = false,
 }: PipelineBoardProps) {
   const navigate = useNavigate();
 
@@ -131,6 +133,7 @@ export function PipelineBoard({
           onMove={updateLeadStatus}
           hasMore={hasMore.new}
           onLoadMore={() => handleLoadMore('new')}
+          isReadOnly={isReadOnly}
         />
 
         {/* Column 2: Shortlisted (Saved) */}
@@ -144,6 +147,7 @@ export function PipelineBoard({
           onMove={updateLeadStatus}
           hasMore={hasMore.saved}
           onLoadMore={() => handleLoadMore('saved')}
+          isReadOnly={isReadOnly}
         />
 
         {/* Column 3: Contacted */}
@@ -157,6 +161,7 @@ export function PipelineBoard({
           onMove={updateLeadStatus}
           hasMore={hasMore.contacted}
           onLoadMore={() => handleLoadMore('contacted')}
+          isReadOnly={isReadOnly}
         />
 
       </div>
@@ -176,6 +181,7 @@ interface PipelineColumnProps {
   onMove: (postId: string, status: 'new' | 'saved' | 'contacted') => Promise<void>;
   hasMore: boolean;
   onLoadMore: () => void;
+  isReadOnly?: boolean;
 }
 
 function PipelineColumn({
@@ -188,6 +194,7 @@ function PipelineColumn({
   onMove,
   hasMore,
   onLoadMore,
+  isReadOnly = false,
 }: PipelineColumnProps) {
   return (
     <div className="w-full min-w-[280px] max-w-[360px] flex-shrink-0 flex flex-col h-full glass-panel rounded-2xl bg-carbon-card/20 border-white/5 snap-align-start overflow-hidden">
@@ -217,6 +224,7 @@ function PipelineColumn({
                 columnId={columnId}
                 onOpenDrawer={onOpenDrawer}
                 onMove={onMove}
+                isReadOnly={isReadOnly}
               />
             ))
           )}
@@ -242,9 +250,10 @@ interface PipelineCardProps {
   columnId: 'new' | 'saved' | 'contacted';
   onOpenDrawer: (lead: Lead) => void;
   onMove: (postId: string, status: 'new' | 'saved' | 'contacted') => Promise<void>;
+  isReadOnly?: boolean;
 }
 
-function PipelineCard({ lead, columnId, onOpenDrawer, onMove }: PipelineCardProps) {
+function PipelineCard({ lead, columnId, onOpenDrawer, onMove, isReadOnly = false }: PipelineCardProps) {
   const [moving, setMoving] = React.useState(false);
 
   const handleMove = async (e: React.MouseEvent, dest: 'new' | 'saved' | 'contacted') => {
@@ -309,6 +318,8 @@ function PipelineCard({ lead, columnId, onOpenDrawer, onMove }: PipelineCardProp
         <div className="flex items-center gap-1">
           {moving ? (
             <Loader2 className="w-3.5 h-3.5 text-lime animate-spin" />
+          ) : isReadOnly ? (
+            null
           ) : (
             <>
               {columnId === 'new' && (

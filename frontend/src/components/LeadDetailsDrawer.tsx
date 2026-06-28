@@ -7,6 +7,7 @@ import {
   Mail, RotateCw, Send
 } from 'lucide-react';
 import { Lead, LeadDetail, QualificationReason } from '../types/lead';
+import { User } from '@supabase/supabase-js';
 import { useLeadDetail } from '../hooks/useLeadDetail';
 import { useOutreachGenerator, OutreachChannel } from '../hooks/useOutreachGenerator';
 import { cn } from '../lib/utils';
@@ -147,6 +148,7 @@ interface LeadDetailsDrawerProps {
   onToggleSave: () => void;
   onToggleContacted: () => void;
   onUpdateNotes: (notes: string) => Promise<void>;
+  user?: User | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -274,6 +276,7 @@ export function LeadDetailsDrawer({
   onToggleSave,
   onToggleContacted,
   onUpdateNotes,
+  user,
 }: LeadDetailsDrawerProps) {
   const { detail, loading, error, fetchDetail, clearDetail, updateLocalNotes } = useLeadDetail();
   const {
@@ -527,22 +530,41 @@ export function LeadDetailsDrawer({
             onClick={onClose}
           />
 
-          {/* Drawer panel */}
+          {/* Drawer panel — bottom sheet on mobile, right panel on desktop */}
           <motion.div
             key="drawer"
             ref={drawerRef}
-            initial={{ x: '100%', opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: '100%', opacity: 0 }}
+            initial={typeof window !== 'undefined' && window.innerWidth < 768
+              ? { y: '100%', opacity: 0 }
+              : { x: '100%', opacity: 0 }
+            }
+            animate={typeof window !== 'undefined' && window.innerWidth < 768
+              ? { y: 0, opacity: 1 }
+              : { x: 0, opacity: 1 }
+            }
+            exit={typeof window !== 'undefined' && window.innerWidth < 768
+              ? { y: '100%', opacity: 0 }
+              : { x: '100%', opacity: 0 }
+            }
             transition={{ type: 'spring', damping: 28, stiffness: 280 }}
             className={cn(
-              'fixed top-0 right-0 h-full z-50 flex flex-col',
-              'bg-[#111111] border-l border-white/8 shadow-2xl',
-              'w-full sm:w-[500px]',
+              'fixed z-50 flex flex-col',
+              'bg-[#111111] border-white/8 shadow-2xl',
+              // Mobile: bottom sheet
+              'inset-x-0 bottom-0 max-h-[90vh] rounded-t-3xl border-t overflow-hidden',
+              // Desktop: right side panel
+              'sm:inset-x-auto sm:top-0 sm:right-0 sm:h-full sm:w-[500px] sm:rounded-none sm:border-t-0 sm:border-l',
             )}
-            style={{ boxShadow: '-8px 0 60px rgba(0,0,0,0.6), -1px 0 0 rgba(198,255,52,0.06)' }}
+            style={{ boxShadow: typeof window !== 'undefined' && window.innerWidth < 768
+              ? '0 -8px 60px rgba(0,0,0,0.6)'
+              : '-8px 0 60px rgba(0,0,0,0.6), -1px 0 0 rgba(198,255,52,0.06)'
+            }}
             onClick={e => e.stopPropagation()}
           >
+            {/* Mobile drag handle pill */}
+            <div className="sm:hidden flex-shrink-0 flex justify-center pt-3 pb-1">
+              <div className="w-12 h-1.5 rounded-full bg-white/20" />
+            </div>
             {/* ── Header ── */}
             <div className="shrink-0 border-b border-white/6 p-5 space-y-3 bg-[#111111]">
               {/* Top row: subreddit + close */}
@@ -890,7 +912,7 @@ export function LeadDetailsDrawer({
                                   intent_score: d.intent_score,
                                   lead_summary: d.lead_summary,
                                   notes: notesText
-                                });
+                                }, user?.id);
                               }
                             }}
                             className="px-3 py-1.5 text-[10px] font-mono text-lime border border-lime/30 bg-lime/5 hover:bg-lime/15 rounded-lg transition-all cursor-pointer"
@@ -938,7 +960,7 @@ export function LeadDetailsDrawer({
                                     intent_score: d.intent_score,
                                     lead_summary: d.lead_summary,
                                     notes: notesText
-                                  });
+                                  }, user?.id);
                                 }
                               }}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass-panel border-white/8 hover:border-lime/30 hover:text-lime text-[10px] font-mono text-gray-400 uppercase tracking-wider transition-colors cursor-pointer"
@@ -965,7 +987,7 @@ export function LeadDetailsDrawer({
                                   intent_score: d.intent_score,
                                   lead_summary: d.lead_summary,
                                   notes: notesText
-                                });
+                                }, user?.id);
                               }
                             }}
                             className="flex items-center gap-1.5 px-4 py-2 text-xs font-mono text-lime border border-lime/20 bg-lime/5 hover:bg-lime/15 hover:border-lime/30 rounded-xl transition-all cursor-pointer"

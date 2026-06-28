@@ -226,6 +226,27 @@ export function IntentScoring() {
             </span>
           </div>
         </div>
+
+        {/* Active Card Caret Indicator */}
+        <AnimatePresence>
+          {isSelected && !isMobileLayout && (
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.5 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.5 }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-20"
+            >
+              <div 
+                className="w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px]"
+                style={{
+                  borderTopColor: '#C6FF34',
+                  filter: 'drop-shadow(0 4px 8px rgba(198,255,52,0.5))'
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     );
   };
@@ -334,7 +355,9 @@ export function IntentScoring() {
               transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
               className="overflow-hidden w-full hidden md:block"
             >
-              <div className="bg-[#0D0D0F] border border-white/10 backdrop-blur-2xl rounded-2xl p-8 mt-12 relative text-left">
+              <div className="notif-glass-panel rounded-2xl p-8 mt-12 relative text-left overflow-hidden">
+                {/* Specular glass reflection crescent */}
+                <div className="absolute top-0.5 left-2.5 right-2.5 h-[35%] bg-gradient-to-b from-white/10 to-transparent rounded-t-2xl pointer-events-none z-10" />
                 {/* Close Button */}
                 <motion.button
                   whileTap={{ scale: 0.9 }}
@@ -438,8 +461,10 @@ export function IntentScoring() {
                 animate={{ y: "0%" }}
                 exit={{ y: "100%" }}
                 transition={{ type: "spring", damping: 25, stiffness: 220 }}
-                className="fixed inset-x-0 bottom-0 z-50 bg-[#0D0D0F] border-t border-white/10 rounded-t-3xl p-6 max-h-[80vh] overflow-y-auto w-full pointer-events-auto flex flex-col text-left"
+                className="fixed inset-x-0 bottom-0 z-50 notif-glass-panel border-t border-white/14 rounded-t-3xl p-6 max-h-[80vh] overflow-y-auto w-full pointer-events-auto flex flex-col text-left overflow-hidden"
               >
+                {/* Specular glass reflection crescent */}
+                <div className="absolute top-0.5 left-2.5 right-2.5 h-[20%] bg-gradient-to-b from-white/8 to-transparent rounded-t-3xl pointer-events-none z-10" />
                 {/* Drag handle */}
                 <div 
                   className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-6 flex-shrink-0 cursor-pointer" 

@@ -46,6 +46,17 @@ async def generate_outreach(
     """
     Generate an AI outreach message on-demand for a given lead, tailored to the selected channel.
     """
+    x_user_id = request.headers.get("x-user-id")
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="Header 'X-User-Id' is required.")
+
+    from backend.subscription_service import can_generate_outreach, increment_usage
+    if not can_generate_outreach(x_user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Daily AI generation limit exceeded. Please upgrade to Pro for unlimited access."
+        )
+
     channel = req.channel.lower().strip()
     if channel not in ("reddit", "linkedin", "email"):
         raise HTTPException(status_code=400, detail="Invalid channel. Must be 'reddit', 'linkedin', or 'email'.")
@@ -151,6 +162,8 @@ async def generate_outreach(
                 status_code=502,
                 detail="Groq API returned empty message content."
             )
+
+        increment_usage(x_user_id, "ai_generations")
 
         return OutreachGenerateResponse(
             channel=channel,

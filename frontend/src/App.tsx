@@ -3,11 +3,14 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { PricingPage } from './pages/PricingPage';
+import { SubscriptionPage } from './pages/SubscriptionPage';
 import { supabase } from './lib/supabase';
 import { User } from '@supabase/supabase-js';
+import ErrorOneDemo from './components/ErrorOne/ErrorOneDemo';
 
 function App() {
-  const [view, setView] = useState<'landing' | 'dashboard' | 'analytics' | 'saved' | 'contacts' | 'profile' | 'pipeline'>('landing');
+  const [view, setView] = useState<'landing' | 'dashboard' | 'analytics' | 'saved' | 'contacts' | 'profile' | 'pipeline' | 'pricing' | 'subscription' | '404'>('landing');
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -40,12 +43,18 @@ function App() {
   // 3. Route & View state synchronization
   useEffect(() => {
     if (!authLoading) {
+      const knownDashboardPaths = ['/dashboard', '/pipeline', '/analytics', '/saved', '/contacts', '/profile', '/subscription'];
+      
       if (!user) {
-        if (location.pathname !== '/') {
+        if (location.pathname === '/pricing') {
+          setView('pricing');
+        } else if (location.pathname === '/') {
+          setView('landing');
+        } else if (knownDashboardPaths.includes(location.pathname)) {
           setView('landing');
           navigate('/', { replace: true });
         } else {
-          setView('landing');
+          setView('404');
         }
       } else {
         if (location.pathname === '/dashboard') {
@@ -60,11 +69,14 @@ function App() {
           setView('contacts');
         } else if (location.pathname === '/profile') {
           setView('profile');
+        } else if (location.pathname === '/pricing') {
+          setView('pricing');
+        } else if (location.pathname === '/subscription') {
+          setView('subscription');
         } else if (location.pathname === '/') {
           setView('landing');
         } else {
-          setView('dashboard');
-          navigate('/dashboard', { replace: true });
+          setView('404');
         }
       }
     }
@@ -78,7 +90,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-carbon-dark text-white select-none">
+    <div className="min-h-screen bg-carbon-dark text-white select-none font-sans">
       {view === 'landing' ? (
         <LandingPage 
           user={user}
@@ -93,6 +105,19 @@ function App() {
           onLogout={handleLogout}
           authLoading={authLoading}
         />
+      ) : view === 'pricing' ? (
+        <PricingPage 
+          user={user}
+          onLogout={handleLogout}
+          authLoading={authLoading}
+        />
+      ) : view === 'subscription' ? (
+        <SubscriptionPage
+          user={user}
+          onLogout={handleLogout}
+        />
+      ) : view === '404' ? (
+        <ErrorOneDemo />
       ) : ['dashboard', 'analytics', 'saved', 'contacts', 'pipeline'].includes(view) ? (
         <DashboardPage 
           user={user}

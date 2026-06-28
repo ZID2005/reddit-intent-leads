@@ -74,7 +74,15 @@ export function useLeads() {
   // ── Fetch counts ───────────────────────────────────────────────────────────
   const fetchCounts = useCallback(async () => {
     try {
-      const { data } = await supabase.from('posts').select('status');
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      const isPro = user?.user_metadata?.plan?.toLowerCase() === 'pro';
+
+      let query = supabase.from('posts').select('status').order('created_at', { ascending: false });
+      if (!isPro) {
+        query = query.limit(100);
+      }
+      const { data } = await query;
       const rows = data || [];
       setTotalLeadsCount(rows.length);
       setSavedLeadsCount(rows.filter(r => r.status === 'saved').length);
@@ -89,6 +97,10 @@ export function useLeads() {
     setLoading(true);
     setError(null);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
+      const isPro = user?.user_metadata?.plan?.toLowerCase() === 'pro';
+
       let query = supabase
         .from('posts')
         .select('*')
@@ -96,6 +108,10 @@ export function useLeads() {
 
       if (currentView === 'saved')     query = query.eq('status', 'saved');
       if (currentView === 'contacted') query = query.like('status', 'contacted%');
+
+      if (!isPro) {
+        query = query.limit(100);
+      }
 
       const { data, error: dbError } = await query;
       if (dbError) throw dbError;
