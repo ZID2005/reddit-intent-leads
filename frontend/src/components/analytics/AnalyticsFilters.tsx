@@ -3,9 +3,6 @@ import { motion } from 'framer-motion';
 
 export type TimeFilterType = 'today' | '7days' | '30days' | 'all';
 
-const NOHEMI = "'Nohemi', sans-serif";
-const LIME = '#C6FF34';
-
 interface AnalyticsFiltersProps {
   value: TimeFilterType;
   onChange: (filter: TimeFilterType) => void;
@@ -20,57 +17,31 @@ export function AnalyticsFilters({ value, onChange }: AnalyticsFiltersProps) {
   ];
 
   return (
-    <div
-      className="flex items-center gap-1 p-1 select-none self-start"
-      style={{
-        background: 'rgba(255,255,255,0.03)',
-        border: '1px solid rgba(255,255,255,0.07)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        borderRadius: 12,
-      }}
-    >
+    <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl sm:rounded-full p-1 flex flex-wrap sm:inline-flex gap-1 justify-center sm:justify-start select-none w-full sm:w-auto">
       {options.map((opt) => {
         const isActive = value === opt.id;
         return (
           <button
             key={opt.id}
             onClick={() => onChange(opt.id)}
-            className="relative cursor-pointer outline-none"
-            style={{
-              padding: '6px 14px',
-              borderRadius: 8,
-              fontFamily: NOHEMI,
-              fontSize: 11,
-              fontWeight: isActive ? 700 : 400,
-              color: isActive ? '#0a0a0a' : 'rgba(255,255,255,0.45)',
-              transition: 'color 0.2s',
-              letterSpacing: '0.02em',
-              border: 'none',
-              background: 'transparent',
-            }}
+            className="relative cursor-pointer outline-none border-none bg-transparent p-0 flex-1 sm:flex-initial text-center"
           >
-            {/* Sliding active background */}
             {isActive && (
               <motion.div
-                layoutId="activeTimeTab"
-                className="absolute inset-0 z-0"
-                style={{ background: LIME, borderRadius: 8 }}
+                layoutId="analytics-time-filter"
+                className="absolute inset-0 z-0 bg-[#C6FF34] rounded-full"
                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
               />
             )}
-            {/* Hover shimmer for inactive */}
-            {!isActive && (
-              <motion.div
-                className="absolute inset-0 z-0 opacity-0 hover:opacity-100 transition-opacity duration-200"
-                style={{
-                  background: 'rgba(255,255,255,0.04)',
-                  borderRadius: 8,
-                  border: '1px solid rgba(255,255,255,0.06)',
-                }}
-              />
-            )}
-            <span className="relative z-10">{opt.label}</span>
+            <span
+              className={`relative z-10 font-mono text-[11px] sm:text-xs px-3 sm:px-4 py-1.5 block rounded-full transition-colors text-center ${
+                isActive
+                  ? 'text-black font-semibold'
+                  : 'text-white/40 hover:text-white/65'
+              }`}
+            >
+              {opt.label}
+            </span>
           </button>
         );
       })}

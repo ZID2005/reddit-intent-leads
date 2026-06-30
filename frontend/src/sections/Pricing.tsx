@@ -194,7 +194,7 @@ export function Pricing({ onSelectTier }: PricingProps) {
                     PRO ACCOUNT
                   </span>
                   <div className="flex items-baseline gap-1 select-none">
-                    <span className="text-4xl md:text-5xl font-bold font-display text-[#C6FF34]">$29</span>
+                    <span className="text-4xl md:text-5xl font-bold font-display text-[#C6FF34]">₹699</span>
                     <span className="text-xs text-gray-500 font-sans font-medium">/ month</span>
                   </div>
                   <p className="text-xs text-gray-500 font-sans mt-3">

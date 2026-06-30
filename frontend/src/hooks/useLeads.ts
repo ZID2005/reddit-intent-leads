@@ -76,7 +76,7 @@ export function useLeads() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
-      const isPro = user?.user_metadata?.plan?.toLowerCase() === 'pro';
+      const isPro = user?.user_metadata?.plan?.toLowerCase() === 'pro' || import.meta.env.DEV;
 
       let query = supabase.from('posts').select('status').order('created_at', { ascending: false });
       if (!isPro) {
@@ -93,13 +93,14 @@ export function useLeads() {
   }, []);
 
   // ── Fetch leads ────────────────────────────────────────────────────────────
-  const fetchLeads = useCallback(async () => {
-    setLoading(true);
+  const fetchLeads = useCallback(async (silent: boolean | unknown = false) => {
+    const isSilent = silent === true;
+    if (!isSilent) setLoading(true);
     setError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
-      const isPro = user?.user_metadata?.plan?.toLowerCase() === 'pro';
+      const isPro = user?.user_metadata?.plan?.toLowerCase() === 'pro' || import.meta.env.DEV;
 
       let query = supabase
         .from('posts')
@@ -123,11 +124,21 @@ export function useLeads() {
       setError(e.message || 'Failed to load leads.');
       setAllLeads([]);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }, [currentView, fetchCounts]);
 
-  useEffect(() => { fetchLeads(); }, [fetchLeads]);
+  useEffect(() => { 
+    fetchLeads(); 
+  }, [fetchLeads]);
+
+  // Poll database every 5 seconds to get latest leads silently
+  useEffect(() => {
+    const timer = setInterval(() => {
+      fetchLeads(true);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [fetchLeads]);
 
   // ── Realtime subscription ──────────────────────────────────────────────────
   useEffect(() => {

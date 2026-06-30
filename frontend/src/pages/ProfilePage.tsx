@@ -604,7 +604,7 @@ export function ProfilePage({ user, onLogout }: ProfilePageProps) {
                 </div>
                 <div className="flex flex-col items-start md:items-end w-full md:w-auto flex-shrink-0 gap-4">
                   <div className="flex items-baseline gap-1">
-                    <span style={{ fontFamily: MONR, fontWeight: 800, fontSize: '3rem', color: LIME, letterSpacing: '-0.03em', lineHeight: 1 }}>$29</span>
+                    <span style={{ fontFamily: MONR, fontWeight: 800, fontSize: '3rem', color: LIME, letterSpacing: '-0.03em', lineHeight: 1 }}>₹699</span>
                     <span style={{ fontFamily: SANS, fontSize: 13, color: MUTED }}>/month</span>
                   </div>
                   <motion.button

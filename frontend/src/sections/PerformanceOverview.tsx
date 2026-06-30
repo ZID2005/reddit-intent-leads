@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { ArrowRight, TrendingUp, TrendingDown, DollarSign, Users, ShoppingBag, BarChart2 } from 'lucide-react';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
+import { ShinyText } from '../components/ShinyText';
+
 
 /* ─────────────────────────────────────────────
    Types
@@ -273,39 +275,12 @@ export function PerformanceOverview({
       className="relative py-28 px-6 md:px-12 select-none overflow-hidden"
       style={{ background: '#070708' }}
     >
-      {/* Ambient green radial glow */}
-      <div
-        className="absolute pointer-events-none z-0"
-        style={{
-          right: '-5%',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          width: 520,
-          height: 520,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(198,255,52,0.12) 0%, transparent 68%)',
-          filter: 'blur(40px)',
-        }}
-      />
-      <div
-        className="absolute pointer-events-none z-0"
-        style={{
-          left: '-8%',
-          bottom: '0',
-          width: 380,
-          height: 380,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(198,255,52,0.06) 0%, transparent 70%)',
-          filter: 'blur(60px)',
-        }}
-      />
-
       {/* Card container */}
       <motion.div
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true, margin: '-80px' }}
-        transition={{ duration: 0.5 }}
+        initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 60 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-100px' }}
+        transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
         className="relative z-10 max-w-6xl mx-auto rounded-3xl overflow-hidden"
         style={{
           background: 'linear-gradient(135deg, rgba(15,15,17,0.95) 0%, rgba(10,10,12,0.98) 100%)',
@@ -367,11 +342,22 @@ export function PerformanceOverview({
               whileInView="visible"
               viewport={{ once: true }}
               variants={fadeUpVariants}
-              className="font-display font-bold leading-[1.05] text-white"
+              className="font-display font-bold leading-[1.05]"
               style={{ fontSize: 'clamp(32px, 4vw, 54px)', letterSpacing: '-0.03em' }}
             >
-              {title}{' '}
-              <span style={{ color: '#C6FF34' }}>{accentWord}</span>
+              <ShinyText 
+                text={title} 
+                color="#ffffff" 
+                shineColor="#C6FF34" 
+                speed={5}
+                className="mr-2"
+              />
+              <ShinyText 
+                text={accentWord} 
+                color="#C6FF34" 
+                shineColor="#ffffff" 
+                speed={5}
+              />
             </motion.h2>
 
             {/* Subtitle */}

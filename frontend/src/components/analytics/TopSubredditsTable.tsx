@@ -1,28 +1,16 @@
-import React, { useMemo } from 'react';
-import { motion } from 'framer-motion';
+import React, { useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Lead } from '../../types/lead';
-
-// ─── Design tokens ─────────────────────────────────────────────────────────────
-const GODBER = "'Godber', sans-serif";
-const NOHEMI = "'Nohemi', sans-serif";
-const MONO = NOHEMI;
-const LIME = '#C6FF34';
-
-// ─── Liquid glass ──────────────────────────────────────────────────────────────
-const glass: React.CSSProperties = {
-  background:           'rgba(255,255,255,0.035)',
-  border:               '1px solid rgba(255,255,255,0.08)',
-  backdropFilter:       'blur(24px) saturate(180%)',
-  WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-  borderRadius:         20,
-  boxShadow:            '0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)',
-};
+import { glassStyle } from '../../lib/glass';
 
 interface TopSubredditsTableProps {
   leads: Lead[];
+  shouldReduceMotion?: boolean;
 }
 
-export function TopSubredditsTable({ leads }: TopSubredditsTableProps) {
+export function TopSubredditsTable({ leads, shouldReduceMotion = false }: TopSubredditsTableProps) {
+  const [showAll, setShowAll] = useState(false);
+
   const tableData = useMemo(() => {
     const subs: Record<string, { count: number; intentCount: number; sumIntent: number; confCount: number; sumConf: number }> = {};
     leads.forEach(l => {
@@ -47,120 +35,130 @@ export function TopSubredditsTable({ leads }: TopSubredditsTableProps) {
       .sort((a, b) => b.count - a.count);
   }, [leads]);
 
+  const displayedRows = showAll ? tableData : tableData.slice(0, 15);
+
+  const listVariants = {
+    hidden: {},
+    visible: { transition: { staggerChildren: shouldReduceMotion ? 0.001 : 0.025 } }
+  };
+
+  const rowVariants = {
+    hidden: shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -15 },
+    visible: {
+      opacity: 1,
+      x: 0,
+      transition: { duration: shouldReduceMotion ? 0.01 : 0.35, ease: 'easeOut' as const }
+    }
+  };
+
+  const getFillColor = (pct: number) => {
+    if (pct > 60) return 'bg-[#C6FF34]';
+    if (pct >= 40) return 'bg-amber-400';
+    return 'bg-white/25';
+  };
+
   return (
-    <div style={{ ...glass, overflow: 'hidden', width: '100%' }}>
-      {/* Header */}
-      <div style={{
-        padding: '18px 24px',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <h3 style={{ fontFamily: GODBER, fontWeight: 700, fontSize: '1rem', color: '#fff', letterSpacing: '-0.01em' }}>
+    <div style={{ ...glassStyle }} className="rounded-2xl overflow-hidden mb-5 w-full select-none border border-white/[0.08]">
+      {/* Header Row */}
+      <div className="px-5 py-4 border-b border-white/[0.06] flex justify-between items-center">
+        <h3 className="font-display text-base font-semibold text-white">
           Top Performing Subreddits
         </h3>
-        <span style={{
-          fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em',
-          background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
-          color: 'rgba(255,255,255,0.4)', borderRadius: 99, padding: '3px 10px',
-          textTransform: 'uppercase',
-        }}>
+        <span className="font-mono text-[10px] bg-[#C6FF34]/10 border border-[#C6FF34]/20 text-[#C6FF34]/70 rounded-full px-3 py-1">
           {tableData.length} active feeds
         </span>
       </div>
 
       {tableData.length === 0 ? (
-        <div style={{ padding: '32px', textAlign: 'center', fontFamily: MONO, fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
+        <div className="p-8 text-center font-mono text-[11px] text-white/30">
           No subreddit data available.
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-            {/* Table header */}
-            <thead>
-              <tr style={{
-                background: 'rgba(255,255,255,0.02)',
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
-              }}>
-                {['Subreddit', 'Lead Count', 'Avg Intent', 'Avg Confidence'].map((col, i) => (
-                  <th key={col} style={{
-                    padding: '12px 20px',
-                    fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em',
-                    textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)',
-                    fontWeight: 400, whiteSpace: 'nowrap',
-                    textAlign: i === 1 ? 'center' : i === 3 ? 'right' : 'left',
-                  }}>
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
+        <div className="w-full overflow-x-auto">
+          <div className="min-w-[500px]">
+            {/* Table Header Row */}
+            <div className="bg-black/25 border-b border-white/[0.05] px-5 py-2.5 grid grid-cols-3 md:grid-cols-4 gap-4 font-mono text-[10px] text-white/22 tracking-widest uppercase">
+              <div>Subreddit</div>
+              <div>Lead Count</div>
+              <div>Avg Intent</div>
+              <div className="hidden md:block">Avg Confidence</div>
+            </div>
 
-            <tbody>
-              {tableData.map((row, idx) => (
-                <motion.tr
-                  key={row.subreddit}
-                  initial={{ opacity: 0, x: -10 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true, margin: '-40px' }}
-                  transition={{ duration: 0.35, delay: Math.min(idx * 0.03, 0.4) }}
-                  style={{
-                    borderBottom: '1px solid rgba(255,255,255,0.04)',
-                    background: idx % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent',
-                    transition: 'background 0.15s',
-                  }}
-                  className="group"
-                  onMouseEnter={e => { (e.currentTarget as HTMLTableRowElement).style.background = 'rgba(255,255,255,0.03)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLTableRowElement).style.background = idx % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent'; }}
-                >
-                  {/* Subreddit */}
-                  <td style={{ padding: '13px 20px', whiteSpace: 'nowrap' }}>
-                    <span style={{ fontFamily: MONO, fontSize: 12, color: 'rgba(198,255,52,0.8)', fontWeight: 500 }}>
+            {/* Table Body Rows */}
+            <motion.div
+              variants={listVariants}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-40px' }}
+              className="flex flex-col"
+            >
+              <AnimatePresence initial={false}>
+                {displayedRows.map((row) => (
+                  <motion.div
+                    key={row.subreddit}
+                    variants={rowVariants}
+                    exit={{ opacity: 0, x: -15, transition: { duration: 0.2 } }}
+                    className="grid grid-cols-3 md:grid-cols-4 gap-4 px-5 py-3 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.025] transition-colors items-center"
+                  >
+                    {/* Subreddit */}
+                    <div className="font-mono text-sm text-[#C6FF34]/75 font-medium truncate">
                       r/{row.subreddit}
-                    </span>
-                  </td>
+                    </div>
 
-                  {/* Lead Count */}
-                  <td style={{ padding: '13px 20px', textAlign: 'center' }}>
-                    <span style={{ fontFamily: MONO, fontSize: 12, color: '#fff', fontWeight: 500 }}>{row.count}</span>
-                  </td>
+                    {/* Lead Count */}
+                    <div className="font-mono text-sm text-white/70 font-medium">
+                      {row.count}
+                    </div>
 
-                  {/* Avg Intent */}
-                  <td style={{ padding: '13px 20px', minWidth: 180 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontFamily: MONO, fontSize: 11, color: '#fff', width: 32, flexShrink: 0 }}>{row.avgIntent}%</span>
-                      <div style={{ flex: 1, maxWidth: 120, height: 6, background: 'rgba(255,255,255,0.07)', borderRadius: 99, overflow: 'hidden' }}>
+                    {/* Avg Intent */}
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-24 md:w-28 h-1.5 rounded-full bg-white/5 overflow-hidden flex-shrink-0 relative">
                         <motion.div
-                          style={{ height: '100%', background: 'rgba(198,255,52,0.7)', borderRadius: 99 }}
+                          className={`h-full rounded-full ${getFillColor(row.avgIntent)}`}
                           initial={{ width: 0 }}
                           whileInView={{ width: `${row.avgIntent}%` }}
                           viewport={{ once: true }}
-                          transition={{ duration: 0.6, ease: 'easeOut', delay: idx * 0.03 }}
+                          transition={{ duration: shouldReduceMotion ? 0.01 : 0.7, ease: 'easeOut' }}
                         />
                       </div>
+                      <span className="font-mono text-xs text-white/45 ml-1">
+                        {row.avgIntent}%
+                      </span>
                     </div>
-                  </td>
 
-                  {/* Avg Confidence */}
-                  <td style={{ padding: '13px 20px', textAlign: 'right' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10 }}>
-                      <div style={{ width: 80, height: 6, background: 'rgba(255,255,255,0.07)', borderRadius: 99, overflow: 'hidden' }}>
+                    {/* Avg Confidence */}
+                    <div className="hidden md:flex items-center gap-2.5">
+                      <div className="w-28 h-1.5 rounded-full bg-white/5 overflow-hidden flex-shrink-0 relative">
                         <motion.div
-                          style={{ height: '100%', background: 'rgba(255,255,255,0.4)', borderRadius: 99 }}
+                          className={`h-full rounded-full ${getFillColor(row.avgConfidence)}`}
                           initial={{ width: 0 }}
                           whileInView={{ width: `${row.avgConfidence}%` }}
                           viewport={{ once: true }}
-                          transition={{ duration: 0.6, ease: 'easeOut', delay: idx * 0.03 }}
+                          transition={{ duration: shouldReduceMotion ? 0.01 : 0.7, ease: 'easeOut' }}
                         />
                       </div>
-                      <span style={{ fontFamily: MONO, fontSize: 11, color: 'rgba(52,211,153,0.9)', fontWeight: 700, width: 32, flexShrink: 0 }}>
+                      <span className="font-mono text-xs text-white/45 ml-1">
                         {row.avgConfidence}%
                       </span>
                     </div>
-                  </td>
-                </motion.tr>
-              ))}
-            </tbody>
-          </table>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </motion.div>
+          </div>
+        </div>
+      )}
+
+      {/* Toggle Button if > 15 */}
+      {tableData.length > 15 && (
+        <div className="py-4 flex justify-center border-t border-white/[0.03]">
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowAll(!showAll)}
+            className="font-mono text-xs text-white/40 hover:text-white/65 border border-white/8 rounded-full px-4 py-1.5 cursor-pointer outline-none flex items-center justify-center transition-colors bg-white/[0.01]"
+          >
+            {showAll ? 'SHOW LESS' : 'SHOW ALL'}
+          </motion.button>
         </div>
       )}
     </div>

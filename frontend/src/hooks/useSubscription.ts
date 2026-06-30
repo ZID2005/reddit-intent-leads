@@ -108,7 +108,7 @@ export function useSubscription(userId?: string) {
     fetchStatus();
   }, [fetchStatus]);
 
-  const isPro = subscription?.plan === 'pro';
+  const isPro = subscription?.plan === 'pro' || import.meta.env.DEV;
   const canGenerateOutreach = isPro || (subscription ? subscription.usage.ai_generations_today < 5 : true);
   const canExportCSV = isPro || (subscription ? subscription.usage.csv_exports_today < 2 : true);
 

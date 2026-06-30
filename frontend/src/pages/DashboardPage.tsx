@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { useLeads } from '../hooks/useLeads';
 import { User } from '@supabase/supabase-js';
 import { usePreferences } from '../hooks/usePreferences';
@@ -13,6 +13,10 @@ import { LiveSignalFeed } from '../components/LiveSignalFeed';
 import { ToastContainer } from '../components/ToastContainer';
 import { useHealthMonitor } from '../hooks/useHealthMonitor';
 import { LoadingState, ErrorState } from '../components/EmptyStates';
+import AmbientBackground from '../components/AmbientBackground';
+import { glassStyle } from '../lib/glass';
+import { CountUp } from '../components/CountUp';
+import { fadeUp, stagger, staggerFast, slideFromLeft } from '../lib/animations';
 import { 
   RotateCw, 
   LogOut, 
@@ -29,6 +33,10 @@ import {
   Download,
   Kanban,
   List,
+  Bookmark,
+  Phone,
+  ChevronDown,
+  ChevronUp,
   Bell,
   Settings,
   CheckSquare,
@@ -37,7 +45,15 @@ import {
   Zap,
   Crown,
   BarChart3,
-  LayoutDashboard
+  LayoutDashboard,
+  Cpu,
+  Layers,
+  GitBranch,
+  Terminal,
+  User as UserIcon,
+  Menu,
+  X,
+  ArrowUpRight
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Lead, CategoryType } from '../types/lead';
@@ -183,6 +199,91 @@ const sidebarViewToRoute = {
 
 const ALL_CATEGORIES: CategoryType[] = ['buying_intent', 'comparison', 'pain_point', 'research', 'uncategorized'];
 
+interface StatCardProps {
+  label: string;
+  value: number;
+  suffix?: string;
+  icon: React.ReactNode;
+  colorClass?: string;
+}
+
+function StatCard({ label, value, suffix = '', icon, colorClass = 'text-white' }: StatCardProps) {
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <motion.div
+      variants={fadeUp}
+      whileHover={{ y: -3 }}
+      transition={{ duration: 0.25 }}
+      onMouseMove={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setPos({
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top,
+        });
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        ...glassStyle,
+        borderRadius: '16px',
+        cursor: 'default',
+        background: hovered
+          ? `radial-gradient(circle at ${pos.x}px ${pos.y}px, rgba(198,255,52,0.06) 0%, rgba(255,255,255,0.035) 55%)`
+          : glassStyle.background,
+      }}
+      className="p-5 flex flex-col justify-between"
+    >
+      <div className="flex justify-between items-start select-none">
+        <span className="font-mono text-[10px] text-white/28 tracking-widest uppercase">
+          {label}
+        </span>
+        <span className="text-white/18">
+          {icon}
+        </span>
+      </div>
+      <div className="mt-2">
+        <span className={cn("font-display text-4xl font-bold tracking-tight block", colorClass)}>
+          <CountUp to={value} suffix={suffix} />
+        </span>
+        <div className="w-8 h-0.5 bg-[#C6FF34]/55 rounded-full mt-2" />
+      </div>
+    </motion.div>
+  );
+}
+
+function IntentScoreCell({ score }: { score: number }) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true });
+  
+  let barColor = 'bg-white/28';
+  let textColor = 'text-white/38';
+  if (score > 70) {
+    barColor = 'bg-[#C6FF34]';
+    textColor = 'text-[#C6FF34]';
+  } else if (score >= 50) {
+    barColor = 'bg-amber-400';
+    textColor = 'text-amber-400';
+  }
+
+  return (
+    <div ref={ref} className="shrink-0 w-32 flex items-center gap-2.5 select-none">
+      <div className="w-20 h-1.5 rounded-full bg-white/8 overflow-hidden">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: isInView ? `${score}%` : 0 }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+          className={cn("h-full rounded-full", barColor)}
+        />
+      </div>
+      <span className={cn("font-mono text-xs font-medium shrink-0", textColor)}>
+        {score}
+      </span>
+    </div>
+  );
+}
+
 export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }: DashboardPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -197,6 +298,9 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const { preferences, updatePreferences } = usePreferences();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [rotateCount, setRotateCount] = useState(0);
 
   // ── Database Fetch Layer ──────────────────────────────────────────────────
   const {
@@ -396,6 +500,7 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
   const {
     filters,
     setSearchQuery,
+    togglePriority,
     toggleCategory,
     toggleSubreddit,
     setIntentRange,
@@ -620,90 +725,143 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
   const monitoredSubs = ['SaaS', 'smallbusiness', 'startups', 'marketing', 'shopify'];
 
   return (
-    <div className="h-screen bg-carbon-dark text-white select-none relative flex flex-col font-sans overflow-hidden">
-      {/* ── Navbar ──────────────────────────────────────────────────────────── */}
-      <nav className="fixed top-0 left-0 right-0 h-16 glass-panel border-t-0 border-r-0 border-l-0 bg-carbon-dark/80 backdrop-blur-md z-40 flex items-center justify-between px-6">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-lime animate-pulse shadow-[0_0_6px_#C6FF34]" />
-          <span className="font-mono text-sm font-bold tracking-wider text-white">SignalRadar</span>
+    <div className={cn("h-screen text-white select-none relative flex flex-col font-sans overflow-hidden", currentView === 'pipeline' ? 'bg-[#070708]' : 'bg-carbon-dark')}>
+      <AmbientBackground />
+      <div className="relative z-10 flex-1 flex flex-col overflow-hidden">
+      {/* ── Topbar ──────────────────────────────────────────────────────────── */}
+      <nav 
+        style={{
+          ...glassStyle,
+          height: '52px',
+          borderRadius: '0px',
+          borderLeft: 'none',
+          borderRight: 'none',
+          borderTop: 'none',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.06)'
+        }}
+        className="fixed top-0 left-0 right-0 z-40 w-full flex items-center justify-between px-6 bg-[#070708]/85 backdrop-blur-md select-none"
+      >
+        
+        {/* Left Section */}
+        <div className="flex items-center gap-3">
+          {/* Hamburger Menu Toggle */}
+          <button
+            onClick={() => {
+              setIsMenuOpen(!isMenuOpen);
+              setIsNotifOpen(false);
+              setIsUserMenuOpen(false);
+            }}
+            className="w-8 h-8 bg-white/[0.04] border border-white/[0.07] rounded-full flex items-center justify-center text-white/40 hover:text-white/70 transition-colors cursor-pointer outline-none"
+          >
+            {isMenuOpen ? (
+              <X className="w-4 h-4" />
+            ) : (
+              <Menu className="w-4 h-4" />
+            )}
+          </button>
+
+          {/* Wordmark and Pulse */}
+          <div className="flex items-center gap-1 select-none">
+            <span className="font-display font-bold text-white text-base tracking-tight">SignalRadar</span>
+            <motion.span
+              animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              className="w-2 h-2 rounded-full bg-[#C6FF34] ml-1 inline-block"
+            />
+          </div>
         </div>
 
-        {/* Center nav tabs */}
-        <div className="hidden md:flex items-center gap-1">
+        {/* Center: Navigation Container */}
+        <div className="hidden md:flex items-center bg-white/[0.03] border border-white/[0.06] rounded-full px-1 py-1 gap-1 relative select-none">
           {[
-            { label: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard className="w-3.5 h-3.5" /> },
-            { label: 'Pipeline', path: '/pipeline', icon: <Kanban className="w-3.5 h-3.5" /> },
-            { label: 'Analytics', path: '/analytics', icon: <BarChart3 className="w-3.5 h-3.5" /> },
-          ].map(tab => (
-            <motion.button
-              key={tab.path}
-              whileHover={{ scale: 1.03, filter: 'brightness(1.05)' }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => navigate(tab.path)}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-mono transition-all duration-200 cursor-pointer outline-none',
-                location.pathname === tab.path
-                  ? 'bg-lime/10 border border-lime/25 text-lime font-bold'
-                  : 'text-gray-400 hover:text-white hover:bg-white/[0.04] border border-transparent'
-              )}
-            >
-              {tab.icon}
-              {tab.label}
-            </motion.button>
-          ))}
+            { label: 'Dashboard', path: '/dashboard' },
+            { label: 'Pipeline', path: '/pipeline' },
+            { label: 'Analytics', path: '/analytics' },
+          ].map(tab => {
+            const isActive = location.pathname === tab.path;
+            return (
+              <button
+                key={tab.path}
+                onClick={() => {
+                  navigate(tab.path);
+                  setIsMenuOpen(false);
+                }}
+                className="relative px-4 py-1.5 rounded-full transition-colors cursor-pointer outline-none"
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="nav-active-pill"
+                    className="absolute inset-0 bg-[#C6FF34] rounded-full z-0"
+                    transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <span className={cn(
+                  "font-mono text-xs z-10 relative block",
+                  isActive ? "text-black font-medium" : "text-white/40 hover:text-white/60"
+                )}>
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="flex items-center gap-4">
-          {/* Health Indicators */}
-          <div className="hidden xl:flex items-center gap-2 font-mono text-[8px] uppercase tracking-wider">
-            <div className="flex items-center gap-1.5 glass-panel border-white/5 px-2.5 py-1 rounded-full">
-              <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_4px_currentColor]", health.api ? "bg-lime text-lime" : "bg-red-500 text-red-500")} />
-              <span className={cn(health.api ? "text-white/80" : "text-red-400 font-bold")}>API</span>
+        {/* Right Section */}
+        <div className="flex items-center gap-3">
+          {/* Health Indicators (Desktop Only) */}
+          <div className="hidden xl:flex items-center gap-2 font-mono text-[10px] select-none">
+            <div className="bg-white/[0.03] border border-white/[0.07] rounded-full px-2.5 py-1 inline-flex items-center gap-1.5">
+              <motion.div 
+                animate={health.api ? { scale: [1, 1.3, 1], opacity: [1, 0.6, 1] } : {}}
+                transition={{ repeat: Infinity, duration: 2 }}
+                className={cn("w-1.5 h-1.5 rounded-full", health.api ? "bg-[#C6FF34]" : "bg-red-400")} 
+              />
+              <span className="text-white/60">API</span>
             </div>
-            <div className="flex items-center gap-1.5 glass-panel border-white/5 px-2.5 py-1 rounded-full">
-              <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_4px_currentColor]", health.scheduler ? "bg-lime text-lime" : "bg-red-500 text-red-500")} />
-              <span className={cn(health.scheduler ? "text-white/80" : "text-red-400 font-bold")}>SCHEDULER</span>
+            <div className="bg-white/[0.03] border border-white/[0.07] rounded-full px-2.5 py-1 inline-flex items-center gap-1.5">
+              <motion.div 
+                animate={health.scheduler ? { scale: [1, 1.3, 1], opacity: [1, 0.6, 1] } : {}}
+                transition={{ repeat: Infinity, duration: 2 }}
+                className={cn("w-1.5 h-1.5 rounded-full", health.scheduler ? "bg-[#C6FF34]" : "bg-red-400")} 
+              />
+              <span className="text-white/60">SCHEDULER</span>
             </div>
-            <div className="flex items-center gap-1.5 glass-panel border-white/5 px-2.5 py-1 rounded-full">
-              <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_4px_currentColor]", health.db ? "bg-lime text-lime" : "bg-red-500 text-red-500")} />
-              <span className={cn(health.db ? "text-white/80" : "text-red-400 font-bold")}>DB</span>
+            <div className="bg-white/[0.03] border border-white/[0.07] rounded-full px-2.5 py-1 inline-flex items-center gap-1.5">
+              <motion.div 
+                animate={health.db ? { scale: [1, 1.3, 1], opacity: [1, 0.6, 1] } : {}}
+                transition={{ repeat: Infinity, duration: 2 }}
+                className={cn("w-1.5 h-1.5 rounded-full", health.db ? "bg-[#C6FF34]" : "bg-red-400")} 
+              />
+              <span className="text-white/60">DB</span>
             </div>
-            <div className="flex items-center gap-1.5 glass-panel border-white/5 px-2.5 py-1 rounded-full">
-              <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_4px_currentColor]", health.groq ? "bg-lime text-lime" : "bg-red-500 text-red-500")} />
-              <span className={cn(health.groq ? "text-white/80" : "text-red-400 font-bold")}>GROQ</span>
+            <div className="bg-white/[0.03] border border-white/[0.07] rounded-full px-2.5 py-1 inline-flex items-center gap-1.5">
+              <motion.div 
+                animate={health.groq ? { scale: [1, 1.3, 1], opacity: [1, 0.6, 1] } : {}}
+                transition={{ repeat: Infinity, duration: 2 }}
+                className={cn("w-1.5 h-1.5 rounded-full", health.groq ? "bg-[#C6FF34]" : "bg-red-400")} 
+              />
+              <span className="text-white/60">GROQ</span>
             </div>
           </div>
 
-          <div className={cn(
-            "flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors",
-            health.scheduler 
-              ? "glass-panel border-white/5 bg-white/[0.01] text-lime" 
-              : "border-red-500/20 bg-red-500/10 text-red-400 font-bold"
-          )}>
-            <div className={cn("w-1.5 h-1.5 rounded-full", health.scheduler ? "bg-lime pulse-dot" : "bg-red-500 shadow-[0_0_6px_#ef4444]")} />
-            <span className="font-mono text-[9px] tracking-widest uppercase">
-              {health.scheduler ? 'LIVE' : 'OFFLINE'}
-            </span>
-          </div>
           {/* Notification Bell */}
           <div className="relative">
             <button
               onClick={() => {
                 setIsNotifOpen(!isNotifOpen);
+                setIsMenuOpen(false);
+                setIsUserMenuOpen(false);
                 setShowNotifPrefs(false);
               }}
-              className={cn(
-                "p-1.5 rounded-lg glass-panel border-white/5 transition-colors duration-150 relative cursor-pointer",
-                isNotifOpen ? "text-lime border-lime/30 bg-lime/5" : "text-gray-400 hover:text-white"
-              )}
+              className="w-8 h-8 bg-white/[0.04] border border-white/[0.07] rounded-full flex items-center justify-center text-white/40 hover:text-white/70 transition-colors cursor-pointer outline-none relative"
               title="Notifications"
             >
               <Bell className="w-4 h-4" />
-              <span className="t-badge" data-open={unreadCount > 0 ? "true" : "false"}>
-                <span className="t-badge-dot bg-red-500 text-white font-bold text-[8px] h-4 w-4 rounded-full flex items-center justify-center border border-[#070708] shadow-lg">
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white font-bold text-[8px] rounded-full flex items-center justify-center border border-[#070708]">
                   {unreadCount}
                 </span>
-              </span>
+              )}
             </button>
 
             <AnimatePresence>
@@ -719,7 +877,7 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
                   {showNotifPrefs ? (
                     <div className="p-4 space-y-4">
                       <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                        <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-lime">
+                        <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#C6FF34]">
                           Notification Prefs
                         </h4>
                         <button
@@ -731,7 +889,6 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
                       </div>
 
                       <div className="space-y-3">
-                        {/* Toggle enabled */}
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-gray-300 font-medium">Browser Alerts</span>
                           <button
@@ -747,7 +904,6 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
                           </button>
                         </div>
 
-                        {/* Slider threshold */}
                         <div className="space-y-1.5 pt-1">
                           <div className="flex justify-between text-[10px] font-mono uppercase tracking-wider text-mutedText">
                             <span>Min Score Threshold</span>
@@ -776,7 +932,7 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
                       {/* Notifications List View */}
                       <div className="flex items-center justify-between p-3.5 border-b border-white/5 bg-white/[0.01]">
                         <div className="flex items-center gap-1.5">
-                          <Bell className="w-3.5 h-3.5 text-lime" />
+                          <Bell className="w-3.5 h-3.5 text-[#C6FF34]" />
                           <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-white">
                             Notifications
                           </h4>
@@ -830,12 +986,11 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
                                 !n.read && "bg-lime/[0.01]"
                               )}
                             >
-                              {/* Unread indicator */}
                               {!n.read && (
                                 <div className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-lime" />
                               )}
 
-                              <div className="flex-1 min-w-0 pl-1">
+                              <div className="flex-1 min-w-0 pl-1 text-left">
                                 <div className="flex items-center justify-between gap-1 mb-1">
                                   <span className="text-[9px] font-mono font-medium text-lime/90 truncate max-w-[120px]">
                                     r/{n.subreddit}
@@ -861,7 +1016,6 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
                                 </div>
                               </div>
 
-                              {/* Toggle Read Dot manually on hover */}
                               <button
                                 onClick={(e) => handleToggleRead(n.id, e)}
                                 className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white/5 text-gray-500 hover:text-white transition-all cursor-pointer flex-shrink-0"
@@ -880,37 +1034,234 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
             </AnimatePresence>
           </div>
 
-          {user && (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setIsProfileOpen(true)}
-              className="w-8 h-8 rounded-full bg-lime flex items-center justify-center font-mono text-black font-bold text-xs cursor-pointer hover:brightness-110 active:scale-95 transition-all outline-none"
-              title="User Profile & Settings"
-            >
-              {(user.user_metadata?.full_name || user.email || 'U').charAt(0).toUpperCase()}
-            </motion.button>
-          )}
+          {/* User Avatar */}
+          <div className="relative">
+            {user && (
+              <button
+                onClick={() => {
+                  setIsUserMenuOpen(!isUserMenuOpen);
+                  setIsMenuOpen(false);
+                  setIsNotifOpen(false);
+                }}
+                className="w-8 h-8 bg-[#C6FF34] rounded-full flex items-center justify-center text-black font-bold font-mono text-sm cursor-pointer hover:brightness-110 active:scale-95 transition-all outline-none"
+                title="Account Menu"
+              >
+                {(user.user_metadata?.full_name || user.email || 'U').charAt(0).toUpperCase()}
+              </button>
+            )}
 
+            <AnimatePresence>
+              {isUserMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 mt-3 w-56 rounded-2xl border border-white/10 bg-[#0c0c0e]/95 p-1.5 shadow-2xl backdrop-blur-xl z-[50] text-left"
+                >
+                  <div className="px-2.5 py-1.5 text-[9px] font-mono text-gray-500 uppercase tracking-wider font-bold">
+                    Account
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      setIsProfileOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-mono text-gray-300 hover:text-white hover:bg-white/5 transition-all text-left cursor-pointer outline-none border border-transparent"
+                  >
+                    <UserIcon className="h-3.5 w-3.5" /> Profile
+                  </button>
+                  <div className="h-px bg-white/5 my-1" />
+                  <button
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      onLogout();
+                    }}
+                    className="w-full flex items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-mono text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-all text-left cursor-pointer outline-none border border-transparent"
+                  >
+                    <LogOut className="h-3.5 w-3.5" /> Logout
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Sign Out Icon Button */}
           <button
-            onClick={onBackToMarketing}
-            className="p-1.5 rounded-lg glass-panel border-white/5 text-gray-400 hover:text-white transition-colors duration-150"
-            title="Landing Page"
+            onClick={onLogout}
+            className="w-8 h-8 bg-white/[0.04] border border-white/[0.07] rounded-full flex items-center justify-center text-white/30 hover:text-white/60 transition-colors cursor-pointer outline-none"
+            title="Sign Out"
           >
-            <LogOut className="w-4 h-4 transform rotate-180" />
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Mega Menu Popover Content */}
+        <AnimatePresence>
+          {isMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 15, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 15, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                ...glassStyle,
+                borderRadius: '32px',
+                background: 'rgba(7, 7, 9, 0.92)',
+                backdropFilter: 'blur(40px) saturate(180%)',
+                WebkitBackdropFilter: 'blur(40px) saturate(180%)',
+              }}
+              className="absolute top-[58px] left-6 right-6 mx-auto w-[calc(100%-3rem)] max-h-[82vh] overflow-y-auto p-8 z-50 text-left select-none border border-transparent bg-transparent"
+            >
+              <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4 divide-y divide-white/5 lg:divide-y-0 lg:divide-x lg:divide-white/5">
+                {/* Column 1 */}
+                <div className="flex flex-col pb-8 lg:pr-8 lg:pb-0 gap-2">
+                  <div className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/5 border border-white/10 text-lime">
+                    <Cpu className="h-5 w-5" />
+                  </div>
+                  <h4 className="text-sm font-bold font-mono text-white">
+                    Radar Engine
+                  </h4>
+                  <p className="text-xs text-gray-500 font-sans leading-relaxed">
+                    Scan subreddits, detect purchase intent signals, and score leads using custom Groq LLM configurations.
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        navigate('/pipeline');
+                      }}
+                      className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-3 py-1.5 text-[10px] font-mono text-gray-300 hover:text-white hover:bg-white/5 cursor-pointer transition-colors"
+                    >
+                      <Layers className="h-3 w-3 text-lime" />
+                      Pipelines
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        setIsProfileOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-3 py-1.5 text-[10px] font-mono text-gray-300 hover:text-white hover:bg-white/5 cursor-pointer transition-colors"
+                    >
+                      <Settings className="h-3 w-3 text-lime" />
+                      Settings
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        navigate('/analytics');
+                      }}
+                      className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-3 py-1.5 text-[10px] font-mono text-gray-300 hover:text-white hover:bg-white/5 cursor-pointer transition-colors"
+                    >
+                      <Terminal className="h-3 w-3 text-lime" />
+                      Analytics
+                    </button>
+                  </div>
+                </div>
+
+                {/* Column 2 */}
+                <div className="flex flex-col gap-3 pt-8 lg:pt-0 lg:pl-8">
+                  <h4 className="text-[10px] font-mono text-gray-500 uppercase tracking-widest font-bold">
+                    Use Cases
+                  </h4>
+                  {[
+                    { name: 'SaaS Intent Leads', desc: 'Find users complaining about tool gaps.' },
+                    { name: 'Product Feedback Radar', desc: 'Identify feature requests.' },
+                    { name: 'Competitor Mention Alerts', desc: 'Intercept queries about alternatives.' },
+                    { name: 'Agency Outbound Pipeline', desc: 'Extract warm target audiences.' },
+                  ].map(uc => (
+                    <div key={uc.name} className="group cursor-pointer">
+                      <div className="text-xs font-mono text-gray-300 group-hover:text-lime transition-colors">
+                        {uc.name}
+                      </div>
+                      <div className="text-[10px] text-gray-600 font-sans mt-0.5">
+                        {uc.desc}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Column 3 */}
+                <div className="flex flex-col gap-3 pt-8 lg:pt-0 lg:pl-8">
+                  <h4 className="text-[10px] font-mono text-gray-500 uppercase tracking-widest font-bold">
+                    System Status
+                  </h4>
+                  <div className="space-y-2.5 mt-1 text-[10px] font-mono">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400">Database Connection</span>
+                      <span className={health.db ? "text-lime" : "text-red-400"}>
+                        {health.db ? "ACTIVE" : "ERROR"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400">Scheduler Daemon</span>
+                      <span className={health.scheduler ? "text-lime" : "text-red-400"}>
+                        {health.scheduler ? "RUNNING" : "OFFLINE"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400">LLM Inference Node</span>
+                      <span className={health.groq ? "text-lime" : "text-red-400"}>
+                        {health.groq ? "ONLINE" : "OFFLINE"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400">Core REST API</span>
+                      <span className={health.api ? "text-lime" : "text-red-400"}>
+                        {health.api ? "OPERATIONAL" : "OFFLINE"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Column 4 */}
+                <div className="flex flex-col pt-8 lg:pt-0 lg:pl-8">
+                  <h4 className="text-[10px] font-mono text-gray-500 uppercase tracking-widest font-bold mb-4">
+                    Featured Option
+                  </h4>
+                  <div
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      setUpgradeModalOpen(true);
+                    }}
+                    className="group relative flex flex-col justify-between overflow-hidden rounded-2xl p-5 border border-[#C6FF34]/20 hover:border-[#C6FF34]/40 bg-white/[0.01] hover:bg-white/[0.02] cursor-pointer transition-all"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-lime/5 via-transparent to-transparent group-hover:opacity-100" />
+                    
+                    <div className="relative">
+                      <span className="inline-block mb-3 border border-lime/30 bg-lime/10 px-2 py-0.5 rounded text-[8px] font-mono text-lime font-bold uppercase tracking-wider">
+                        Premium Tier
+                      </span>
+                      <h4 className="text-xs font-mono font-bold text-white mb-1.5 group-hover:text-lime transition-colors">
+                        Activate SignalRadar Pro
+                      </h4>
+                      <p className="text-[10px] text-gray-500 font-sans leading-relaxed">
+                        Unlock 10 subreddits, real-time alerts, unlimited qualified leads, and instant AI draft replies.
+                      </p>
+                    </div>
+
+                    <div className="mt-4 flex items-center text-[10px] font-mono text-lime">
+                      Upgrade now{' '}
+                      <ArrowUpRight className="ml-1 w-3 h-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       {/* ── Live signal marquee ─────────────────────────────────────────────── */}
-      <div className="fixed top-16 left-0 right-0 z-30">
+      <div className="fixed top-[52px] left-0 right-0 z-30">
         <LiveSignalFeed />
       </div>
 
       {/* ── Main layout ─────────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col md:flex-row pt-[108px] h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row pt-[88px] pb-0 h-screen overflow-hidden">
         
         {/* Sidebar Navigation & Filters — hidden on mobile, shown on md+ */}
-        <div className="hidden md:flex md:flex-col md:h-full md:w-[260px] md:flex-shrink-0">
+        <div className="hidden md:flex md:flex-col md:h-full md:w-[180px] md:flex-shrink-0">
           <Sidebar
             currentView={sidebarView}
             setView={handleSetView}
@@ -919,7 +1270,7 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
             contactedCount={contactedLeadsCount}
             filters={filters}
             availableSubreddits={availableSubreddits}
-            togglePriority={() => {}} // Not needed for lead dashboard
+            togglePriority={togglePriority}
             toggleCategory={toggleCategory}
             toggleSubreddit={toggleSubreddit}
             setIntentRange={setIntentRange}
@@ -929,14 +1280,9 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
           />
         </div>
 
-        {/* ── Mobile Bottom Tab Bar — fixed, icon-only, shown only on mobile ── */}
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-[60px] flex items-center justify-around px-2"
-          style={{
-            background: 'rgba(7,7,8,0.92)',
-            backdropFilter: 'blur(24px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-            borderTop: '1px solid rgba(255,255,255,0.08)',
-          }}
+        {/* ── Mobile Bottom Tab Bar — iOS Floating Liquid Glass ── */}
+        <div 
+          className="md:hidden fixed bottom-4 left-4 right-4 z-50 h-[56px] flex items-center justify-around px-2 bg-[#070708]/70 backdrop-blur-2xl rounded-full border border-white/[0.09] shadow-[0_12px_40px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)] select-none"
         >
           {[
             { id: 'all' as const,       path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" />, label: 'Dashboard' },
@@ -948,22 +1294,24 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
             <button
               key={tab.id}
               onClick={() => navigate(tab.path)}
-              className="flex flex-col items-center justify-center gap-0.5 flex-1 h-full cursor-pointer outline-none"
-              style={{ minHeight: 44, minWidth: 44 }}
+              className="flex items-center justify-center flex-1 h-full cursor-pointer outline-none transition-colors relative"
+              style={{ minHeight: 44 }}
               aria-label={tab.label}
             >
               <span className={cn(
-                'transition-colors duration-150',
-                sidebarView === tab.id ? 'text-[#C6FF34]' : 'text-gray-500'
+                'transition-colors duration-150 relative z-10',
+                sidebarView === tab.id ? 'text-[#C6FF34]' : 'text-white/30 hover:text-white/50'
               )}>
                 {tab.icon}
               </span>
-              <span className={cn(
-                'text-[9px] font-mono tracking-wide transition-colors duration-150',
-                sidebarView === tab.id ? 'text-[#C6FF34]' : 'text-gray-600'
-              )}>
-                {tab.label}
-              </span>
+              {sidebarView === tab.id && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="absolute inset-2 rounded-full bg-white/[0.04] border border-white/[0.05]"
+                  transition={{ duration: 0.15 }}
+                />
+              )}
             </button>
           ))}
         </div>
@@ -1014,264 +1362,260 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
             </div>
           </React.Suspense>
         ) : (
-          <div className="flex-1 overflow-y-auto p-6 md:p-8 pb-24 md:pb-8 space-y-6">
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 pb-32 md:pb-8 space-y-6">
             
-            {/* Title & Reload button */}
-            <div className="flex justify-between items-center">
+            {/* Dashboard Header */}
+            <div className="flex justify-between items-start mb-5">
               <div className="space-y-1">
-                <h1 className="text-xl md:text-2xl font-bold font-syne text-white tracking-tight capitalize">
+                <h1 className="font-display text-2xl font-bold text-white tracking-tight capitalize select-none">
                   {currentView === 'dashboard' ? 'Lead Dashboard' : currentView === 'saved' ? 'Bookmarked Leads' : 'Outreach History'}
                 </h1>
-                <p className="text-xs text-mutedText font-mono">
+                <p className="font-body text-xs text-white/30 mt-0.5 select-none">
                   {currentView === 'dashboard' && 'View and filter qualified Reddit leads in real-time'}
                   {currentView === 'saved' && 'Review and draft replies for bookmarked opportunities'}
                   {currentView === 'contacts' && 'Track outreach velocity and history logs'}
                 </p>
               </div>
+
               {!loading && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 select-none">
                   {currentView === 'dashboard' && (
-                    <button
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
                       onClick={() => navigate('/pipeline')}
-                      className="flex items-center gap-2 px-3 py-2 text-xs font-mono rounded-lg glass-panel border-white/5 text-gray-400 hover:text-white hover:border-white/10 transition-colors cursor-pointer"
+                      style={{
+                        ...glassStyle,
+                        borderRadius: '10px',
+                      }}
+                      className="px-4 py-2 font-body text-xs text-white/55 hover:text-white hover:border-white/15 transition-all flex items-center gap-2 cursor-pointer outline-none border border-transparent bg-transparent"
                       title="Switch to Pipeline View"
                     >
-                      <Kanban className="w-4 h-4" />
+                      <LayoutDashboard className="w-4 h-4" />
                       <span className="hidden sm:inline">Pipeline View</span>
-                    </button>
+                    </motion.button>
                   )}
-                  <button
+
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
                     onClick={handleExportCSV}
                     disabled={sortedLeads.length === 0}
-                    className="flex items-center gap-2 px-3 py-2 text-xs font-mono rounded-lg glass-panel border-white/5 text-gray-400 hover:text-white hover:border-white/10 disabled:opacity-50 disabled:pointer-events-none transition-colors cursor-pointer"
+                    style={{
+                      ...glassStyle,
+                      borderRadius: '10px',
+                    }}
+                    className="px-4 py-2 font-body text-xs text-white/55 hover:text-white hover:border-white/15 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-2 cursor-pointer outline-none border border-transparent bg-transparent"
                     title="Export filtered leads to CSV"
                   >
                     <Download className="w-4 h-4" />
                     <span className="hidden sm:inline">Export CSV</span>
-                  </button>
-                  <button
-                    onClick={retryFetch}
-                    className="p-2 rounded-lg glass-panel border-white/5 text-gray-400 hover:text-white hover:border-white/10 transition-colors"
+                  </motion.button>
+
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setRotateCount(prev => prev + 1);
+                      retryFetch();
+                    }}
+                    style={{
+                      ...glassStyle,
+                      borderRadius: '10px',
+                    }}
+                    className="px-4 py-2 font-body text-xs text-white/55 hover:text-white hover:border-white/15 transition-all flex items-center gap-2 cursor-pointer outline-none border border-transparent bg-transparent"
                     title="Refresh Leads"
                   >
-                    <RotateCw className="w-4 h-4" />
-                  </button>
+                    <motion.div
+                      animate={{ rotate: rotateCount * 360 }}
+                      transition={{ duration: 0.6, ease: 'easeInOut' }}
+                      className="flex items-center justify-center"
+                    >
+                      <RotateCw className="w-4 h-4" />
+                    </motion.div>
+                  </motion.button>
                 </div>
               )}
             </div>
 
-            {/* ── KPI Cards Section ───────────────────────────────────────────── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Card 1: Total Leads */}
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.05 }}
-                className="glass-panel p-6 flex flex-col justify-between min-h-[110px]"
-              >
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-mono uppercase tracking-widest text-mutedText">
-                    Total Leads
-                  </span>
-                  <Users className="w-4 h-4 text-lime/75" />
-                </div>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-3xl font-bold font-mono tracking-tight text-white">
-                    <CountUp target={totalLeadsCount} />
-                  </span>
-                  <div className="h-1 w-8 bg-lime rounded-full ml-1" />
-                </div>
-              </motion.div>
+            {/* Stat Cards Grid */}
+            <motion.div
+              variants={stagger}
+              initial="hidden"
+              animate="visible"
+              className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5"
+            >
+              <StatCard
+                label="Total Leads"
+                value={totalLeadsCount}
+                icon={<Users className="w-4 h-4" />}
+                colorClass="text-white"
+              />
+              <StatCard
+                label="Saved Leads"
+                value={savedLeadsCount}
+                icon={<Bookmark className="w-4 h-4" />}
+                colorClass="text-[#C6FF34]"
+              />
+              <StatCard
+                label="Contacted Leads"
+                value={contactedLeadsCount}
+                icon={<Phone className="w-4 h-4" />}
+                colorClass="text-amber-400"
+              />
+              <StatCard
+                label="Average Intent Score"
+                value={avgIntentScore}
+                suffix="%"
+                icon={<TrendingUp className="w-4 h-4" />}
+                colorClass="text-white"
+              />
+            </motion.div>
 
-              {/* Card 2: Saved Leads */}
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.1 }}
-                className="glass-panel p-6 flex flex-col justify-between min-h-[110px]"
-              >
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-mono uppercase tracking-widest text-mutedText">
-                    Saved Leads
-                  </span>
-                  <Star className="w-4 h-4 text-yellow-400 fill-yellow-400/10" />
-                </div>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-3xl font-bold font-mono tracking-tight text-white">
-                    <CountUp target={savedLeadsCount} />
-                  </span>
-                  <div className="h-1 w-8 bg-yellow-400 rounded-full ml-1" />
-                </div>
-              </motion.div>
-
-              {/* Card 3: Contacted Leads */}
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.15 }}
-                className="glass-panel p-6 flex flex-col justify-between min-h-[110px]"
-              >
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-mono uppercase tracking-widest text-mutedText">
-                    Contacted Leads
-                  </span>
-                  <PhoneCall className="w-4 h-4 text-cyan-400" />
-                </div>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-3xl font-bold font-mono tracking-tight text-white">
-                    <CountUp target={contactedLeadsCount} />
-                  </span>
-                  <div className="h-1 w-8 bg-cyan-400 rounded-full ml-1" />
-                </div>
-              </motion.div>
-
-              {/* Card 4: Average Intent Score */}
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.2 }}
-                className="glass-panel p-6 flex flex-col justify-between min-h-[110px]"
-              >
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-mono uppercase tracking-widest text-mutedText">
-                    Average Intent Score
-                  </span>
-                  <TrendingUp className="w-4 h-4 text-lime/75" />
-                </div>
-                <div className="flex items-baseline gap-1 mt-2">
-                  <span className="text-3xl font-bold font-mono tracking-tight text-white">
-                    <CountUp target={avgIntentScore} />
-                    <span className="text-sm text-lime font-mono font-medium ml-0.5">%</span>
-                  </span>
-                  <div className="h-1 w-8 bg-lime rounded-full ml-1" />
-                </div>
-              </motion.div>
-            </div>
-
-            {/* ── Search & Filters Section ───────────────────────────────────── */}
-            <div className="glass-panel p-6 rounded-2xl space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Search by title */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-mono uppercase tracking-wider text-mutedText flex items-center gap-1.5">
-                    <Search className="w-3 h-3 text-lime" />
-                    Search Title
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Type to search..."
-                      value={filters.searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full px-3 py-2 text-sm bg-[#0A0A0A]/50 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-lime/50 transition-colors"
-                    />
-                  </div>
+            {/* Filter Bar */}
+            <div 
+              style={{
+                ...glassStyle,
+                borderRadius: '16px',
+              }}
+              className="p-4 mb-4 select-none"
+            >
+              {/* Top Row: Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                {/* Search */}
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    placeholder="Type to search..."
+                    value={filters.searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="bg-black/25 border border-white/[0.06] rounded-xl px-10 py-2.5 font-body text-sm text-white placeholder:text-white/20 outline-none w-full focus:border-[#C6FF34]/30 transition-colors duration-200"
+                  />
+                  <Search className="absolute left-3 w-4 h-4 text-white/25" />
                 </div>
 
-                {/* Category Filter */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-mono uppercase tracking-wider text-mutedText">Category</label>
+                {/* Category Select */}
+                <div className="relative">
                   <select
                     value={displayCategory}
                     onChange={(e) => handleCategorySelect(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-[#0A0A0A]/50 border border-white/10 rounded-lg text-white focus:outline-none focus:border-lime/50 transition-colors"
+                    className="bg-black/25 border border-white/[0.06] rounded-xl px-4 py-2.5 font-body text-sm text-white/60 appearance-none w-full outline-none focus:border-[#C6FF34]/30 transition-colors cursor-pointer"
                   >
-                    <option value="all" className="bg-[#0A0A0A]">All Categories</option>
-                    <option value="buying_intent" className="bg-[#0A0A0A]">Buying Intent</option>
-                    <option value="comparison" className="bg-[#0A0A0A]">Comparison</option>
-                    <option value="pain_point" className="bg-[#0A0A0A]">Pain Point</option>
-                    <option value="research" className="bg-[#0A0A0A]">Research</option>
-                    <option value="uncategorized" className="bg-[#0A0A0A]">Uncategorized</option>
+                    <option value="all" className="bg-[#0c0c0e]">All Categories</option>
+                    <option value="buying_intent" className="bg-[#0c0c0e]">Buying Intent</option>
+                    <option value="comparison" className="bg-[#0c0c0e]">Comparison</option>
+                    <option value="pain_point" className="bg-[#0c0c0e]">Pain Point</option>
+                    <option value="research" className="bg-[#0c0c0e]">Research</option>
+                    <option value="uncategorized" className="bg-[#0c0c0e]">Uncategorized</option>
                   </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25 pointer-events-none" />
                 </div>
 
-                {/* Subreddit Filter */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-mono uppercase tracking-wider text-mutedText">Subreddit</label>
+                {/* Subreddit Select */}
+                <div className="relative">
                   <select
                     value={displaySubreddit}
                     onChange={(e) => handleSubredditSelect(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-[#0A0A0A]/50 border border-white/10 rounded-lg text-white focus:outline-none focus:border-lime/50 transition-colors"
+                    className="bg-black/25 border border-white/[0.06] rounded-xl px-4 py-2.5 font-body text-sm text-white/60 appearance-none w-full outline-none focus:border-[#C6FF34]/30 transition-colors cursor-pointer"
                   >
-                    <option value="all" className="bg-[#0A0A0A]">All Subreddits</option>
+                    <option value="all" className="bg-[#0c0c0e]">All Subreddits</option>
                     {availableSubreddits.map(sub => (
-                      <option key={sub} value={sub} className="bg-[#0A0A0A]">r/{sub}</option>
+                      <option key={sub} value={sub} className="bg-[#0c0c0e]">r/{sub}</option>
                     ))}
                   </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25 pointer-events-none" />
                 </div>
 
-                {/* Sort selection */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-mono uppercase tracking-wider text-mutedText">Sort By</label>
+                {/* Sort By Select */}
+                <div className="relative">
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-[#0A0A0A]/50 border border-white/10 rounded-lg text-white focus:outline-none focus:border-lime/50 transition-colors"
+                    className="bg-black/25 border border-white/[0.06] rounded-xl px-4 py-2.5 font-body text-sm text-white/60 appearance-none w-full outline-none focus:border-[#C6FF34]/30 transition-colors cursor-pointer"
                   >
-                    <option value="date_desc" className="bg-[#0A0A0A]">Date: Newest First</option>
-                    <option value="date_asc" className="bg-[#0A0A0A]">Date: Oldest First</option>
-                    <option value="intent_desc" className="bg-[#0A0A0A]">Intent Score: Highest</option>
-                    <option value="intent_asc" className="bg-[#0A0A0A]">Intent Score: Lowest</option>
+                    <option value="date_desc" className="bg-[#0c0c0e]">Date: Newest First</option>
+                    <option value="date_asc" className="bg-[#0c0c0e]">Date: Oldest First</option>
+                    <option value="intent_desc" className="bg-[#0c0c0e]">Intent Score: Highest</option>
+                    <option value="intent_asc" className="bg-[#0c0c0e]">Intent Score: Lowest</option>
                   </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25 pointer-events-none" />
                 </div>
               </div>
 
-              {/* Intent Score Range Sliders */}
-              <div className="pt-4 border-t border-white/5 grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                <div className="flex flex-col gap-2">
-                  <div className="flex justify-between text-xs font-mono uppercase tracking-wider text-mutedText">
-                    <span className="flex items-center gap-1.5">
-                      <Filter className="w-3 h-3 text-lime" />
-                      Intent Score Range
-                    </span>
-                    <span className="text-lime font-bold font-mono">{filters.intentRange[0]} - {filters.intentRange[1]}</span>
+              {/* Bottom Row */}
+              <div className="full-width flex items-center gap-4 mt-3">
+                <span className="font-mono text-[10px] text-white/25 tracking-widest shrink-0">
+                  INTENT SCORE RANGE
+                </span>
+
+                <span className="font-mono text-xs text-[#C6FF34]/65 shrink-0">
+                  {filters.intentRange[0]} - {filters.intentRange[1]}
+                </span>
+
+                {/* Custom Dual Thumbs Slider */}
+                <div className="flex-1 relative h-5 flex items-center select-none">
+                  <div className="w-full h-1 bg-white/10 rounded-full relative">
+                    <div
+                      className="absolute h-1 bg-[#C6FF34]/50 rounded-full"
+                      style={{
+                        left: `${filters.intentRange[0]}%`,
+                        right: `${100 - filters.intentRange[1]}%`,
+                      }}
+                    />
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1 flex items-center gap-2">
-                      <span className="text-[10px] text-mutedText font-mono">Min:</span>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={filters.intentRange[0]}
-                        onChange={(e) => {
-                          setIntentRange([Math.min(Number(e.target.value), filters.intentRange[1]), filters.intentRange[1]]);
-                        }}
-                        className="w-full accent-lime bg-white/10 h-1 rounded-lg cursor-pointer"
-                      />
-                    </div>
-                    <div className="flex-1 flex items-center gap-2">
-                      <span className="text-[10px] text-mutedText font-mono">Max:</span>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={filters.intentRange[1]}
-                        onChange={(e) => {
-                          setIntentRange([filters.intentRange[0], Math.max(Number(e.target.value), filters.intentRange[0])]);
-                        }}
-                        className="w-full accent-lime bg-white/10 h-1 rounded-lg cursor-pointer"
-                      />
-                    </div>
-                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={filters.intentRange[0]}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setIntentRange([Math.min(v, filters.intentRange[1] - 1), filters.intentRange[1]]);
+                    }}
+                    className="sidebar-slider absolute w-full appearance-none bg-transparent cursor-pointer pointer-events-none"
+                    style={{ 
+                      zIndex: filters.intentRange[0] > 90 ? 5 : 3,
+                      WebkitAppearance: 'none',
+                      pointerEvents: 'auto'
+                    }}
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={filters.intentRange[1]}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setIntentRange([filters.intentRange[0], Math.max(v, filters.intentRange[0] + 1)]);
+                    }}
+                    className="sidebar-slider absolute w-full appearance-none bg-transparent cursor-pointer pointer-events-none"
+                    style={{ 
+                      zIndex: 4,
+                      WebkitAppearance: 'none',
+                      pointerEvents: 'auto'
+                    }}
+                  />
                 </div>
 
-                <div className="flex items-end justify-between md:justify-end md:gap-8 h-full">
-                  <div className="text-xs text-mutedText font-mono">
-                    Showing <span className="text-white">{sortedLeads.length}</span> of <span className="text-white">{allLeads.length}</span> leads
-                  </div>
-                  <button
-                    onClick={handleClearFilters}
-                    className="text-xs text-lime/80 hover:text-lime hover:underline transition-colors font-mono cursor-pointer"
-                  >
-                    Reset Filters
-                  </button>
-                </div>
+                <span className="font-mono text-xs text-white/28 shrink-0">
+                  Showing <span className="text-white">{sortedLeads.length}</span> of <span className="text-white">{allLeads.length}</span> leads
+                </span>
+
+                <button
+                  onClick={handleClearFilters}
+                  className="font-mono text-xs text-[#C6FF34]/60 hover:text-[#C6FF34] border border-[#C6FF34]/20 hover:border-[#C6FF34]/40 rounded-full px-3 py-1 bg-[#C6FF34]/[0.04] transition-all cursor-pointer shrink-0 outline-none"
+                >
+                  Reset Filters
+                </button>
               </div>
             </div>
 
             {/* ── Table Container ─────────────────────────────────────────────── */}
-            <div className="glass-panel rounded-2xl overflow-hidden">
+            {/* Table Container */}
+            <div 
+              style={{
+                ...glassStyle,
+                borderRadius: '16px',
+              }}
+              className="w-full overflow-x-auto scrollbar-thin"
+            >
               {loading ? (
                 <div className="p-12">
                   <LoadingState />
@@ -1281,107 +1625,190 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
                   <ErrorState message={error} onRetry={retryFetch} />
                 </div>
               ) : sortedLeads.length === 0 ? (
-                <div className="glass-panel p-12 text-center rounded-2xl max-w-md mx-auto my-8 border-none bg-transparent">
+                <div className="p-12 text-center max-w-md mx-auto my-8 select-none">
                   <span className="text-xl block mb-4">🔍</span>
                   <h3 className="text-base font-semibold mb-1 text-white">No leads found</h3>
-                  <p className="text-xs text-mutedText leading-relaxed">
+                  <p className="text-xs text-white/30 leading-relaxed">
                     Try adjusting your search queries or active filters.
                   </p>
                 </div>
               ) : (
-                <div className="flex flex-col">
-                  <div className="overflow-x-auto w-full">
-                    <table className="w-full border-collapse text-left text-sm text-gray-300">
-                      <thead className="bg-white/[0.02] border-b border-white/5 font-mono text-xs uppercase text-mutedText tracking-wider">
-                        <tr>
-                          <th className="px-6 py-4 font-semibold">Created At</th>
-                          <th className="px-6 py-4 font-semibold">Title</th>
-                          <th className="px-6 py-4 font-semibold">Subreddit</th>
-                          <th className="px-6 py-4 font-semibold">Category</th>
-                          <th className="px-6 py-4 font-semibold">Intent Score</th>
-                          <th className="px-6 py-4 font-semibold text-right">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {paginatedLeads.map((lead) => (
-                          <tr
-                            key={lead.post_id}
-                            id={`lead-row-${lead.post_id}`}
-                            className="hover:bg-white/[0.015] transition-colors cursor-pointer group"
-                            onClick={() => openDrawer(lead)}
-                          >
-                            {/* Created At */}
-                            <td className="px-6 py-4 whitespace-nowrap text-xs text-mutedText font-mono">
-                              {formatDateTime(lead.created_at)}
-                            </td>
-                            {/* Title & Summary preview */}
-                            <td className="px-6 py-4">
-                              <div className="space-y-1 max-w-[340px]">
-                                <div className="font-semibold text-white group-hover:text-lime transition-colors truncate" title={lead.title}>
-                                  {lead.title}
-                                </div>
-                                <div className="text-xs text-mutedText line-clamp-1 truncate" title={lead.lead_summary || lead.body}>
-                                  {lead.lead_summary || lead.body || '—'}
-                                </div>
-                              </div>
-                            </td>
-                            {/* Subreddit */}
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="font-mono text-xs text-lime/90 px-2.5 py-1 rounded-full bg-lime/5 border border-lime/10">
-                                r/{lead.subreddit}
-                              </span>
-                            </td>
-                            {/* Category */}
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={cn("text-xs px-2.5 py-1 rounded-full font-medium border", getCategoryStyle(lead.category))}>
-                                {getCategoryLabel(lead.category)}
-                              </span>
-                            </td>
-                            {/* Intent Score */}
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center gap-2">
-                                <div className="w-12 bg-white/10 rounded-full h-1.5 overflow-hidden">
-                                  <div
-                                    className={cn("h-full rounded-full", getIntentColor(lead.intent_score))}
-                                    style={{ width: `${lead.intent_score}%` }}
-                                  />
-                                </div>
-                                <span className={cn("font-mono text-xs font-bold", lead.intent_score >= 80 ? 'text-lime' : lead.intent_score >= 60 ? 'text-amberAccent' : 'text-gray-400')}>
-                                  {lead.intent_score}
-                                </span>
-                              </div>
-                            </td>
-                            {/* Action link */}
-                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openDrawer(lead);
-                                }}
-                                className="text-xs text-lime border border-lime/20 bg-lime/5 hover:bg-lime/15 hover:border-lime/30 px-3 py-1.5 rounded-lg transition-colors font-mono cursor-pointer"
-                              >
-                                Details
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                <div className="flex flex-col min-w-[800px]">
+                  {/* Table Header Row */}
+                  <div className="bg-black/25 border-b border-white/[0.06] flex items-center px-5 py-3 gap-4 select-none min-w-[800px]">
+                    <div 
+                      onClick={() => {
+                        setSortBy(prev => prev === 'date_desc' ? 'date_asc' : 'date_desc');
+                      }}
+                      className="font-mono text-[10px] text-white/45 tracking-widest uppercase shrink-0 w-36 cursor-pointer hover:text-white/70 transition-colors flex items-center"
+                    >
+                      CREATED AT
+                      {sortBy.startsWith('date') ? (
+                        sortBy === 'date_desc' ? (
+                          <ChevronDown className="w-3 h-3 text-[#C6FF34] inline ml-1" />
+                        ) : (
+                          <ChevronUp className="w-3 h-3 text-[#C6FF34] inline ml-1" />
+                        )
+                      ) : (
+                        <ChevronDown className="w-3 h-3 text-white/35 inline ml-1" />
+                      )}
+                    </div>
+                    <div className="font-mono text-[10px] text-white/45 tracking-widest uppercase flex-1 min-w-0">
+                      TITLE
+                    </div>
+                    <div className="font-mono text-[10px] text-white/45 tracking-widest uppercase shrink-0 w-32">
+                      SUBREDDIT
+                    </div>
+                    <div className="font-mono text-[10px] text-white/45 tracking-widest uppercase shrink-0 w-36">
+                      CATEGORY
+                    </div>
+                    <div 
+                      onClick={() => {
+                        setSortBy(prev => prev === 'intent_desc' ? 'intent_asc' : 'intent_desc');
+                      }}
+                      className="font-mono text-[10px] text-white/45 tracking-widest uppercase shrink-0 w-32 cursor-pointer hover:text-white/70 transition-colors flex items-center"
+                    >
+                      INTENT SCORE
+                      {sortBy.startsWith('intent') ? (
+                        sortBy === 'intent_desc' ? (
+                          <ChevronDown className="w-3 h-3 text-[#C6FF34] inline ml-1" />
+                        ) : (
+                          <ChevronUp className="w-3 h-3 text-[#C6FF34] inline ml-1" />
+                        )
+                      ) : (
+                        <ChevronDown className="w-3 h-3 text-white/35 inline ml-1" />
+                      )}
+                    </div>
+                    <div className="font-mono text-[10px] text-white/45 tracking-widest uppercase shrink-0 w-24 text-right">
+                      ACTION
+                    </div>
                   </div>
 
-                  {/* ── Pagination Controls ───────────────────────────────────── */}
+                  {/* Table Rows */}
+                  <motion.div 
+                    variants={staggerFast}
+                    initial="hidden"
+                    animate="visible"
+                    className="flex flex-col divide-y divide-white/[0.04]"
+                  >
+                    {paginatedLeads.map((lead, index) => {
+                      // Subreddit border/text colors mod 4 cycle
+                      const borderColors = [
+                        'rgba(198,255,52,0.2)',
+                        'rgba(232,168,56,0.2)',
+                        'rgba(96,165,250,0.2)',
+                        'rgba(168,85,247,0.2)'
+                      ];
+                      const textColors = [
+                        'rgba(198,255,52,0.85)',
+                        'rgba(232,168,56,0.85)',
+                        'rgba(96,165,250,0.85)',
+                        'rgba(168,85,247,0.85)'
+                      ];
+                      const bgColors = [
+                        'rgba(198,255,52,0.04)',
+                        'rgba(232,168,56,0.04)',
+                        'rgba(96,165,250,0.04)',
+                        'rgba(168,85,247,0.04)'
+                      ];
+
+                      // Category styles map
+                      let catClass = 'bg-white/5 border border-white/10 text-white/38';
+                      if (lead.category === 'buying_intent') {
+                        catClass = 'bg-[#C6FF34]/12 border-[#C6FF34]/22 text-[#C6FF34]/78';
+                      } else if (lead.category === 'pain_point') {
+                        catClass = 'bg-amber-400/12 border border-amber-400/22 text-amber-400/78';
+                      } else if (lead.category === 'comparison') {
+                        catClass = 'bg-blue-400/12 border border-blue-400/22 text-blue-400/78';
+                      } else if (lead.category === 'research') {
+                        catClass = 'bg-purple-400/12 border border-purple-400/22 text-purple-400/78';
+                      }
+
+                      return (
+                        <motion.div
+                          key={lead.post_id}
+                          variants={slideFromLeft}
+                          onClick={() => openDrawer(lead)}
+                          className="flex items-center px-5 py-3.5 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.025] transition-colors duration-150 gap-4 cursor-pointer min-w-[800px]"
+                        >
+                          {/* Created At */}
+                          <div className="font-mono text-[11px] text-white/32 shrink-0 w-36 select-none">
+                            {formatDateTime(lead.created_at)}
+                          </div>
+
+                          {/* Title */}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-body text-sm text-white/78 truncate" title={lead.title}>
+                              {lead.title}
+                            </div>
+                            <div className="font-body text-xs text-white/28 truncate mt-0.5" title={lead.lead_summary || lead.body}>
+                              {lead.lead_summary || lead.body || '—'}
+                            </div>
+                          </div>
+
+                          {/* Subreddit */}
+                          <div className="shrink-0 w-32 select-none">
+                            <span 
+                              style={{
+                                borderColor: borderColors[index % 4],
+                                color: textColors[index % 4],
+                                backgroundColor: bgColors[index % 4]
+                              }}
+                              className="font-mono text-[11px] rounded-full px-3 py-1 border"
+                            >
+                              r/{lead.subreddit}
+                            </span>
+                          </div>
+
+                          {/* Category */}
+                          <div className="shrink-0 w-36 select-none">
+                            <span className={cn("rounded-full px-3 py-1 font-mono text-[10px] font-medium border", catClass)}>
+                              {getCategoryLabel(lead.category)}
+                            </span>
+                          </div>
+
+                          {/* Intent Score */}
+                          <IntentScoreCell score={lead.intent_score} />
+
+                          {/* Action Details Button */}
+                          <div className="shrink-0 w-24 flex justify-end select-none">
+                            <motion.button
+                              whileTap={{ scale: 0.94 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openDrawer(lead);
+                              }}
+                              style={{
+                                ...glassStyle,
+                                borderRadius: '10px',
+                              }}
+                              className="px-4 py-1.5 font-body text-xs text-white/52 hover:border-[#C6FF34]/28 hover:text-[#C6FF34]/78 hover:bg-[#C6FF34]/[0.04] transition-all duration-200 cursor-pointer outline-none border border-transparent bg-transparent"
+                            >
+                              Details
+                            </motion.button>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </motion.div>
+
+                  {/* Pagination Row */}
                   {totalPages > 1 && (
-                    <div className="flex items-center justify-between px-6 py-4 bg-white/[0.01] border-t border-white/5">
-                      <div className="text-xs text-mutedText font-mono">
-                        Page <span className="text-white">{currentPage}</span> of <span className="text-white">{totalPages}</span>
-                      </div>
+                    <div className="px-5 py-4 border-t border-white/[0.06] flex justify-between items-center select-none">
+                      <span className="font-mono text-xs text-white/28">
+                        Page {currentPage} of {totalPages}
+                      </span>
                       <div className="flex gap-2">
                         <button
                           onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                           disabled={currentPage === 1}
+                          style={{
+                            ...glassStyle,
+                            borderRadius: '8px',
+                          }}
                           className={cn(
-                            "p-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer",
-                            currentPage === 1 && "opacity-50 pointer-events-none"
+                            "px-3 py-1.5 font-body text-xs text-white/38 hover:text-white hover:border-white/18 transition-all cursor-pointer outline-none border border-transparent bg-transparent flex items-center justify-center",
+                            currentPage === 1 && "opacity-30 cursor-not-allowed pointer-events-none"
                           )}
                         >
                           <ChevronLeft className="w-4 h-4" />
@@ -1389,9 +1816,13 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
                         <button
                           onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                           disabled={currentPage === totalPages}
+                          style={{
+                            ...glassStyle,
+                            borderRadius: '8px',
+                          }}
                           className={cn(
-                            "p-1.5 rounded-lg border border-white/10 text-gray-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer",
-                            currentPage === totalPages && "opacity-50 pointer-events-none"
+                            "px-3 py-1.5 font-body text-xs text-white/38 hover:text-white hover:border-white/18 transition-all cursor-pointer outline-none border border-transparent bg-transparent flex items-center justify-center",
+                            currentPage === totalPages && "opacity-30 cursor-not-allowed pointer-events-none"
                           )}
                         >
                           <ChevronRight className="w-4 h-4" />
@@ -1451,39 +1882,11 @@ export function DashboardPage({ currentView, onBackToMarketing, user, onLogout }
           }}
         />
       )}
+      </div>
     </div>
   );
 }
 
-// ── Local CountUp Component ─────────────────────────────────────────────────
-function CountUp({ target }: { target: number }) {
-  const [count, setCount] = useState(0);
 
-  useEffect(() => {
-    let start = 0;
-    const end = target;
-    if (start === end) {
-      setCount(end);
-      return;
-    }
-
-    const duration = 600; // ms
-    const stepTime = Math.max(Math.floor(duration / Math.max(end, 1)), 15);
-    
-    const timer = setInterval(() => {
-      start += Math.ceil((end - start) / 5);
-      if (start >= end) {
-        setCount(end);
-        clearInterval(timer);
-      } else {
-        setCount(start);
-      }
-    }, stepTime);
-
-    return () => clearInterval(timer);
-  }, [target]);
-
-  return <>{count}</>;
-}
 
 export default DashboardPage;

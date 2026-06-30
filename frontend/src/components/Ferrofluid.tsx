@@ -310,6 +310,12 @@ export const Ferrofluid: React.FC<FerrofluidProps> = ({
     const ro = new ResizeObserver(resize);
     ro.observe(container);
 
+    let isVisible = true;
+    const io = new IntersectionObserver(([entry]) => {
+      isVisible = entry.isIntersecting;
+    }, { threshold: 0.01 });
+    io.observe(container);
+
     const onPointerMove = (e: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
       const sc = renderer.dpr || 1;
@@ -327,6 +333,8 @@ export const Ferrofluid: React.FC<FerrofluidProps> = ({
 
     const loop = (t: number) => {
       rafRef.current = requestAnimationFrame(loop);
+      if (!isVisible) return;
+
       uniforms.iTime.value = t * 0.001;
       if (mouseDampening > 0) {
         if (!lastTimeRef.current) lastTimeRef.current = t;
@@ -356,6 +364,7 @@ export const Ferrofluid: React.FC<FerrofluidProps> = ({
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       if (mouseInteraction) window.removeEventListener('pointermove', onPointerMove);
       ro.disconnect();
+      io.disconnect();
       if (canvas.parentElement === container) {
         container.removeChild(canvas);
       }

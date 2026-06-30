@@ -1,10 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Star, Phone, ArrowRight, ArrowLeft, Loader2, Sparkles, AlertTriangle, FileText, Check, List } from 'lucide-react';
+import { Star, Phone, ArrowRight, ArrowLeft, Loader2, Sparkles, AlertTriangle, FileText, Check, List, CalendarDays } from 'lucide-react';
 import { Lead } from '../types/lead';
 import { cn } from '../lib/utils';
 import { LoadingState } from './EmptyStates';
+import { glassStyle } from '../lib/glass';
+import { fadeUp } from '../lib/animations';
 
 interface PipelineBoardProps {
   leads: Lead[];
@@ -26,6 +28,11 @@ export function PipelineBoard({
   isReadOnly = false,
 }: PipelineBoardProps) {
   const navigate = useNavigate();
+
+  const isInitialRef = React.useRef(true);
+  React.useEffect(() => {
+    isInitialRef.current = false;
+  }, []);
 
   const [visibleCounts, setVisibleCounts] = React.useState<Record<'new' | 'saved' | 'contacted', number>>({
     new: 50,
@@ -99,29 +106,50 @@ export function PipelineBoard({
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden p-6 md:p-8 space-y-6">
-      <div className="flex justify-between items-center shrink-0">
+    <div className="flex-1 flex flex-col h-full overflow-hidden p-6 md:p-8 space-y-6 relative z-10">
+      <motion.div
+        initial={{ opacity: 0, y: -15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex justify-between items-start mb-6 shrink-0"
+      >
         <div className="space-y-1">
-          <h1 className="text-xl md:text-2xl font-bold font-syne text-white tracking-tight">
+          <h1 className="text-2xl font-bold font-display text-white tracking-tight">
             Outreach Pipeline
           </h1>
-          <p className="text-xs text-mutedText font-mono">
+          <p className="font-sans text-xs text-white/35 mt-1">
             Visualize and move qualified opportunities through your sales stages
           </p>
         </div>
-        <button
+        <motion.button
+          whileTap={{ scale: 0.95 }}
           onClick={() => navigate('/dashboard')}
-          className="flex items-center gap-2 px-3 py-2 text-xs font-mono rounded-lg glass-panel border-white/5 text-gray-400 hover:text-white hover:border-white/10 transition-colors cursor-pointer"
+          style={{
+            ...glassStyle,
+            borderRadius: '10px',
+          }}
+          className="px-4 py-2 flex items-center gap-2 font-sans text-xs text-white/55 hover:text-white hover:border-white/15 transition-all cursor-pointer bg-transparent border border-transparent outline-none"
           title="Switch to Table View"
         >
           <List className="w-4 h-4" />
           <span className="hidden sm:inline">Table View</span>
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
 
       {/* Kanban Board Container */}
-      <div className="flex-1 min-h-0 overflow-x-auto flex gap-6 pb-4 snap-x select-none">
-        
+      <motion.div
+        variants={{
+          hidden: {},
+          visible: {
+            transition: {
+              staggerChildren: 0.1
+            }
+          }
+        }}
+        initial="hidden"
+        animate="visible"
+        className="flex-1 min-h-0 overflow-y-auto md:overflow-hidden grid grid-cols-1 md:grid-cols-3 gap-4 select-none pb-4"
+      >
         {/* Column 1: New */}
         <PipelineColumn
           title="New Opportunities"
@@ -134,12 +162,13 @@ export function PipelineBoard({
           hasMore={hasMore.new}
           onLoadMore={() => handleLoadMore('new')}
           isReadOnly={isReadOnly}
+          isInitial={isInitialRef.current}
         />
 
         {/* Column 2: Shortlisted (Saved) */}
         <PipelineColumn
-          title="Shortlisted (Saved)"
-          icon={<Star className="w-4 h-4 text-yellow-400 fill-yellow-400/10" />}
+          title="Shortlisted"
+          icon={<Star className="w-4 h-4 text-amber-400" />}
           leads={slicedLeads.saved}
           totalCount={columns.saved.length}
           columnId="saved"
@@ -148,12 +177,13 @@ export function PipelineBoard({
           hasMore={hasMore.saved}
           onLoadMore={() => handleLoadMore('saved')}
           isReadOnly={isReadOnly}
+          isInitial={isInitialRef.current}
         />
 
         {/* Column 3: Contacted */}
         <PipelineColumn
           title="Contacted"
-          icon={<Phone className="w-4 h-4 text-cyan-400" />}
+          icon={<Phone className="w-4 h-4 text-blue-400" />}
           leads={slicedLeads.contacted}
           totalCount={columns.contacted.length}
           columnId="contacted"
@@ -162,9 +192,9 @@ export function PipelineBoard({
           hasMore={hasMore.contacted}
           onLoadMore={() => handleLoadMore('contacted')}
           isReadOnly={isReadOnly}
+          isInitial={isInitialRef.current}
         />
-
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -182,6 +212,7 @@ interface PipelineColumnProps {
   hasMore: boolean;
   onLoadMore: () => void;
   isReadOnly?: boolean;
+  isInitial: boolean;
 }
 
 function PipelineColumn({
@@ -195,29 +226,104 @@ function PipelineColumn({
   hasMore,
   onLoadMore,
   isReadOnly = false,
+  isInitial,
 }: PipelineColumnProps) {
+  const [isDragOver, setIsDragOver] = React.useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (isReadOnly) return;
+    e.preventDefault();
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (isReadOnly) return;
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    if (isReadOnly) return;
+    e.preventDefault();
+    setIsDragOver(false);
+    const postId = e.dataTransfer.getData('text/plain');
+    const originColumn = e.dataTransfer.getData('origin-column');
+    if (postId && originColumn !== columnId) {
+      await onMove(postId, columnId);
+    }
+  };
+
+  let accentClass = '';
+  if (columnId === 'new') {
+    accentClass = 'bg-gradient-to-r from-transparent via-purple-400/30 to-transparent';
+  } else if (columnId === 'saved') {
+    accentClass = 'bg-gradient-to-r from-transparent via-amber-400/30 to-transparent';
+  } else if (columnId === 'contacted') {
+    accentClass = 'bg-gradient-to-r from-transparent via-blue-400/30 to-transparent';
+  }
+
+  const dragStyle = isDragOver ? {
+    borderColor: 'rgba(198, 255, 52, 0.25)',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.055), inset 0 0 12px rgba(198, 255, 52, 0.02)',
+    transition: 'all 0.2s ease',
+  } : {
+    transition: 'all 0.2s ease',
+  };
+
   return (
-    <div className="w-full min-w-[280px] max-w-[360px] flex-shrink-0 flex flex-col h-full glass-panel rounded-2xl bg-carbon-card/20 border-white/5 snap-align-start overflow-hidden">
+    <motion.div
+      variants={fadeUp}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      style={{
+        ...glassStyle,
+        ...dragStyle,
+      }}
+      className="w-full flex flex-col h-[60vh] md:h-full md:max-h-[calc(100vh-200px)] overflow-hidden relative"
+    >
+      {/* Decorative top accent */}
+      <div className={cn("absolute top-0 left-0 right-0 h-px z-20", accentClass)} />
+
       {/* Column Header */}
-      <div className="p-4 border-b border-white/5 bg-white/[0.01] flex items-center justify-between">
+      <div className="px-4 py-4 border-b border-white/[0.06] flex items-center justify-between shrink-0 relative z-10">
         <div className="flex items-center gap-2">
           {icon}
-          <h3 className="font-syne font-bold text-sm text-white">{title}</h3>
+          <h3 className="font-display text-base font-semibold text-white">{title}</h3>
         </div>
-        <span className="font-mono text-xs text-mutedText bg-white/5 px-2 py-0.5 rounded-full font-bold">
+        <span className="font-mono text-xs bg-white/5 border border-white/[0.08] rounded-full px-2.5 py-1 text-white/50">
           {totalCount}
         </span>
       </div>
 
-      {/* Card List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        <AnimatePresence>
+      {/* Card List Container */}
+      <div 
+        className="flex-1 overflow-y-auto px-3 py-3 space-y-3 scrollbar-thin relative z-10"
+        style={{
+          maskImage: 'linear-gradient(to bottom, transparent 0%, black 16px, black calc(100% - 16px), transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 16px, black calc(100% - 16px), transparent 100%)'
+        }}
+      >
+        <AnimatePresence mode="popLayout">
           {leads.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center p-8 text-center text-gray-500 italic text-xs">
-              No leads in this stage
-            </div>
+            <motion.div
+              key="empty"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="py-12 flex flex-col items-center justify-center text-center"
+            >
+              {columnId === 'new' && <Sparkles className="w-8 h-8 text-purple-400/20" />}
+              {columnId === 'saved' && <Star className="w-8 h-8 text-amber-400/20" />}
+              {columnId === 'contacted' && <Phone className="w-8 h-8 text-blue-400/20" />}
+              <span className="font-sans text-xs text-white/20 mt-3">No leads in this stage</span>
+            </motion.div>
           ) : (
-            leads.map((lead) => (
+            leads.map((lead, idx) => (
               <PipelineCard
                 key={lead.post_id}
                 lead={lead}
@@ -225,6 +331,8 @@ function PipelineColumn({
                 onOpenDrawer={onOpenDrawer}
                 onMove={onMove}
                 isReadOnly={isReadOnly}
+                index={idx}
+                isInitial={isInitial}
               />
             ))
           )}
@@ -239,7 +347,7 @@ function PipelineColumn({
           </button>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -251,10 +359,22 @@ interface PipelineCardProps {
   onOpenDrawer: (lead: Lead) => void;
   onMove: (postId: string, status: 'new' | 'saved' | 'contacted') => Promise<void>;
   isReadOnly?: boolean;
+  index: number;
+  isInitial: boolean;
 }
 
-function PipelineCard({ lead, columnId, onOpenDrawer, onMove, isReadOnly = false }: PipelineCardProps) {
+function PipelineCard({
+  lead,
+  columnId,
+  onOpenDrawer,
+  onMove,
+  isReadOnly = false,
+  index,
+  isInitial,
+}: PipelineCardProps) {
   const [moving, setMoving] = React.useState(false);
+  const [isHovered, setIsHovered] = React.useState(false);
+  const [isDragging, setIsDragging] = React.useState(false);
 
   const handleMove = async (e: React.MouseEvent, dest: 'new' | 'saved' | 'contacted') => {
     e.stopPropagation();
@@ -266,56 +386,103 @@ function PipelineCard({ lead, columnId, onOpenDrawer, onMove, isReadOnly = false
     }
   };
 
-  const scoreColor = lead.intent_score >= 80 ? 'text-lime' : lead.intent_score >= 60 ? 'text-amberAccent' : 'text-gray-400';
+  const delay = isInitial ? index * 0.05 : 0.1;
+
+  const scoreColor = lead.intent_score >= 80 
+    ? 'text-lime' 
+    : lead.intent_score >= 50 
+      ? 'text-amber-400' 
+      : 'text-white/40';
+
+  const scoreBarColor = lead.intent_score >= 80 
+    ? 'bg-lime' 
+    : lead.intent_score >= 50 
+      ? 'bg-amber-400' 
+      : 'bg-white/40';
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      whileHover={{ y: -3, scale: 1.01 }}
+      initial={{ opacity: 0, y: 15, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95, x: 20 }}
+      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1], delay }}
+      whileHover={{ y: -3, transition: { duration: 0.2 } }}
+      whileDrag={{ 
+        scale: 1.04, 
+        rotate: 1.5, 
+        boxShadow: '0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(198,255,52,0.25)', 
+        zIndex: 50 
+      }}
+      draggable={!isReadOnly}
+      onDragStart={(e: any) => {
+        if (isReadOnly) return;
+        e.dataTransfer.setData('text/plain', lead.post_id);
+        e.dataTransfer.setData('origin-column', columnId);
+        setIsDragging(true);
+      }}
+      onDragEnd={() => setIsDragging(false)}
       onClick={() => onOpenDrawer(lead)}
-      className="glass-panel p-4 rounded-xl border border-white/5 bg-white/[0.015] hover:bg-white/[0.03] hover:border-white/10 transition-colors duration-150 cursor-pointer space-y-3 relative group"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="relative rounded-xl p-4 cursor-grab active:cursor-grabbing group overflow-hidden border transition-all duration-300"
+      style={{
+        background: 'rgba(255,255,255,0.04)',
+        border: isHovered 
+          ? '1px solid rgba(255,255,255,0.13)' 
+          : isDragging 
+            ? '1px solid rgba(198,255,52,0.25)' 
+            : '1px solid rgba(255,255,255,0.07)',
+        backdropFilter: 'blur(16px)',
+        opacity: isDragging ? 0.3 : 1,
+      }}
     >
-      {/* Top details */}
-      <div className="flex justify-between items-start gap-2">
-        <span className="font-mono text-[9px] text-lime px-2 py-0.5 rounded bg-lime/5 border border-lime/10 truncate max-w-[120px]">
+      {/* Card hover sheen effect */}
+      <div 
+        className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+        style={{
+          background: 'radial-gradient(circle at top right, rgba(198,255,52,0.04) 0%, transparent 60%)'
+        }}
+      />
+
+      {/* Card top row */}
+      <div className="flex justify-between items-start mb-2.5 gap-2 relative z-10">
+        <span className="font-mono text-[10px] bg-lime/10 border border-lime/20 text-lime/75 rounded-full px-2.5 py-1 truncate max-w-[140px]">
           r/{lead.subreddit}
         </span>
-        <div className="flex items-center gap-1.5 font-mono text-[10px]">
+        <div className="flex items-center gap-1.5 font-mono text-xs font-semibold shrink-0">
           <span className={scoreColor}>{lead.intent_score}%</span>
-          {lead.notes && (
-            <span title="Has notes">
-              <FileText className="w-3 h-3 text-lime" />
+          {(lead.draft_reply || lead.notes) && (
+            <span title="Has draft reply or notes">
+              <FileText className="w-3 h-3 text-white/25" />
             </span>
           )}
         </div>
       </div>
 
-      {/* Title */}
-      <h4 className="text-xs font-semibold text-white leading-snug line-clamp-2 pr-2">
+      {/* Card title */}
+      <h4 className="font-sans text-sm text-white/85 font-medium leading-snug line-clamp-2 mb-3 relative z-10">
         {lead.title}
       </h4>
 
-      {/* Intent Score Bar */}
-      <div className="w-full bg-white/5 rounded-full h-1 overflow-hidden">
-        <div
-          className={cn(
-            "h-full rounded-full",
-            lead.intent_score >= 80 ? 'bg-lime' : lead.intent_score >= 60 ? 'bg-amberAccent' : 'bg-gray-500'
-          )}
-          style={{ width: `${lead.intent_score}%` }}
+      {/* Progress bar */}
+      <div className="w-full bg-white/8 rounded-full h-1 overflow-hidden mb-3 relative z-10">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${lead.intent_score}%` }}
+          transition={{ duration: 0.6, ease: 'easeOut', delay: delay + 0.1 }}
+          className={cn("h-full rounded-full", scoreBarColor)}
         />
       </div>
 
-      {/* Action Row */}
-      <div className="flex justify-between items-center pt-2 border-t border-white/5">
-        <span className="text-[9px] font-mono text-mutedText">
+      {/* Card bottom row */}
+      <div className="flex justify-between items-center relative z-10">
+        <span className="font-mono text-[10px] text-white/25 flex items-center gap-1">
+          <CalendarDays className="w-3 h-3" />
           {new Date(lead.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
         </span>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           {moving ? (
             <Loader2 className="w-3.5 h-3.5 text-lime animate-spin" />
           ) : isReadOnly ? (
@@ -323,40 +490,70 @@ function PipelineCard({ lead, columnId, onOpenDrawer, onMove, isReadOnly = false
           ) : (
             <>
               {columnId === 'new' && (
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  whileHover={{ scale: 1.05 }}
                   onClick={(e) => handleMove(e, 'saved')}
-                  className="p-1 rounded bg-lime/10 border border-lime/20 text-lime hover:bg-lime hover:text-carbon-dark transition-colors duration-150 cursor-pointer"
+                  style={{
+                    ...glassStyle,
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '8px',
+                  }}
+                  className="flex items-center justify-center text-white/40 hover:text-lime hover:border-lime/25 transition-all border border-transparent bg-transparent cursor-pointer outline-none relative"
                   title="Shortlist Lead"
                 >
-                  <ArrowRight className="w-3 h-3" />
-                </button>
+                  <span className="absolute inset-[-4px] pointer-events-auto" />
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </motion.button>
               )}
               {columnId === 'saved' && (
                 <>
-                  <button
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
+                    whileHover={{ scale: 1.05 }}
                     onClick={(e) => handleMove(e, 'new')}
-                    className="p-1 rounded bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/15 transition-colors duration-150 cursor-pointer"
+                    style={{
+                      ...glassStyle,
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '8px',
+                    }}
+                    className="flex items-center justify-center text-white/35 hover:text-white/60 transition-all border border-transparent bg-transparent cursor-pointer outline-none relative"
                     title="Move back to New"
                   >
-                    <ArrowLeft className="w-3 h-3" />
-                  </button>
-                  <button
+                    <span className="absolute inset-[-4px] pointer-events-auto" />
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.9 }}
+                    whileHover={{ scale: 1.05 }}
                     onClick={(e) => handleMove(e, 'contacted')}
-                    className="p-1 rounded bg-cyan-400/10 border border-cyan-400/20 text-cyan-400 hover:bg-cyan-400 hover:text-carbon-dark transition-colors duration-150 cursor-pointer"
+                    className="bg-lime/15 border border-lime/30 w-7 h-7 rounded-lg flex items-center justify-center text-lime hover:bg-lime/25 transition-all cursor-pointer outline-none relative"
                     title="Mark as Contacted"
                   >
-                    <Check className="w-3 h-3" />
-                  </button>
+                    <span className="absolute inset-[-4px] pointer-events-auto" />
+                    <Check className="w-3.5 h-3.5" />
+                  </motion.button>
                 </>
               )}
               {columnId === 'contacted' && (
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  whileHover={{ scale: 1.05 }}
                   onClick={(e) => handleMove(e, 'saved')}
-                  className="p-1 rounded bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/15 transition-colors duration-150 cursor-pointer"
+                  style={{
+                    ...glassStyle,
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '8px',
+                  }}
+                  className="flex items-center justify-center text-white/35 hover:text-white/60 transition-all border border-transparent bg-transparent cursor-pointer outline-none relative"
                   title="Move back to Saved"
                 >
-                  <ArrowLeft className="w-3 h-3" />
-                </button>
+                  <span className="absolute inset-[-4px] pointer-events-auto" />
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                </motion.button>
               )}
             </>
           )}

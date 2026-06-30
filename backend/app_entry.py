@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 from backend.scheduler import app, SCHEDULER_API_PORT, scheduler, get_supabase, limiter
 from backend.outreach_router import router as outreach_router
 from backend.subscription_router import router as subscription_router
+from backend.payment_router import router as payment_router
 from backend.config import GROQ_API_KEY
 import time
 
@@ -22,6 +23,10 @@ app.include_router(outreach_router)
 # Include the subscription router
 logger.info("Registering Subscription and Usage Tracking router...")
 app.include_router(subscription_router)
+
+# Include the payment router
+logger.info("Registering Razorpay payment router...")
+app.include_router(payment_router)
 
 # Remove the old health route from scheduler.py to prevent clash
 app.router.routes = [r for r in app.router.routes if getattr(r, "path", None) != "/health"]
